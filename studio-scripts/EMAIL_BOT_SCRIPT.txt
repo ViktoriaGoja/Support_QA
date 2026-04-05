@@ -1,0 +1,118 @@
+====================================================================
+  CXONE STUDIO SCRIPT — EMAIL BOT (using REST API action)
+====================================================================
+
+  This script handles inbound emails. Claude reads the email and
+  drafts a reply. If it can answer, the reply is sent automatically.
+  If not, the email is routed to a human agent.
+
+  HOW TO SET UP IN STUDIO:
+  1. Open CXone Studio
+  2. Create a new script (type: Email)
+  3. Add the actions below in order
+  4. Save and assign to your Email point of contact
+
+====================================================================
+
+SCRIPT FLOW:
+  BEGIN → SNIPPET (extract email) → REST API (call bot) →
+  SNIPPET (parse response) → IF (check escalate) →
+    YES → REQAGENT (route to human)
+    NO  → REPLY (send email reply) → END
+
+--------------------------------------------------------------------
+ACTION 1: BEGIN
+  Connect OnAnswer → Action 2
+
+--------------------------------------------------------------------
+ACTION 2: SNIPPET — "Extract Email Details"
+
+  Paste this code:
+
+    ASSIGN botUrl = "https://YOUR-SERVER.com/api/email"
+    ASSIGN apiKey = "YOUR-BOT-API-KEY"
+
+    // Get email details from the contact
+    ASSIGN emailFrom = "{from}"
+    ASSIGN emailSubject = "{subject}"
+    ASSIGN emailBody = "{body}"
+    ASSIGN contactId = "{ContactId}"
+
+    // Build JSON payload
+    DYNAMIC requestBody
+    ASSIGN requestBody.contactId = contactId
+    ASSIGN requestBody.from = emailFrom
+    ASSIGN requestBody.subject = emailSubject
+    ASSIGN requestBody.body = emailBody
+    ASSIGN payload = "{requestBody.asJSON()}"
+
+  Connect → Action 3
+
+--------------------------------------------------------------------
+ACTION 3: REST API — "Call Claude Bot"
+
+  Configure these properties:
+    URL:              {botUrl}
+    HTTP Method:      POST
+    Headers:
+      Content-Type:   application/json
+      X-API-Key:      {apiKey}
+    Body:             {payload}
+    Timeout:          60  (emails may take longer)
+    Response Variable: botResponse
+
+  Connect Success → Action 4
+  Connect Failure → Action 6 (REQAGENT)
+
+--------------------------------------------------------------------
+ACTION 4: SNIPPET — "Parse Bot Response"
+
+  Paste this code:
+
+    DYNAMIC result
+    ASSIGN result = botResponse
+    ASSIGN botReply = "{result.reply}"
+    ASSIGN botEscalate = "{result.escalate}"
+    ASSIGN botSubject = "{result.subject}"
+
+  Connect → Action 5
+
+--------------------------------------------------------------------
+ACTION 5: IF — "Should Escalate?"
+
+  Expression:  botEscalate = "true"
+
+  Connect True  → Action 6 (REQAGENT)
+  Connect False → Action 7 (REPLY)
+
+--------------------------------------------------------------------
+ACTION 6: REQAGENT — "Route to Human Agent"
+
+  Configure:
+    Skill: (select your live agent email skill)
+
+--------------------------------------------------------------------
+ACTION 7: REPLY — "Send Email Reply"
+
+  Configure:
+    Body: {botReply}
+
+  NOTE: The REPLY action in CXone automatically sends an email
+  reply to the original sender. Be careful:
+    - Do NOT use REPLY if the "from" address is your own point
+      of contact address (this would create a loop).
+    - The REPLY action is terminal — it ends the contact.
+
+  Connect → END
+
+--------------------------------------------------------------------
+
+NOTES:
+  - Replace YOUR-SERVER.com with your actual server URL
+  - Replace YOUR-BOT-API-KEY with the value from your .env file
+  - The built-in variables {from}, {subject}, {body} contain
+    the inbound email details
+  - Consider adding a delay or review step if you want a human
+    to approve email replies before they go out
+  - Test with internal email addresses first!
+====================================================================

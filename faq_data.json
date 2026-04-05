@@ -1,0 +1,38 @@
+[
+  {
+    "id": "hours",
+    "question": "What are your business hours?",
+    "keywords": ["hours", "open", "close", "schedule", "time", "available", "when", "business", "working"],
+    "answer": "We are open Monday through Friday, 9 AM to 6 PM Eastern Time. We are closed on weekends and major holidays."
+  },
+  {
+    "id": "contact",
+    "question": "How can I contact support?",
+    "keywords": ["contact", "support", "reach", "phone", "email", "help", "call", "talk", "speak"],
+    "answer": "You can reach our support team by phone at (555) 123-4567, by email at support@yourcompany.com, or right here in this chat."
+  },
+  {
+    "id": "refund",
+    "question": "What is your refund policy?",
+    "keywords": ["refund", "return", "money", "back", "cancel", "cancellation", "exchange", "reimburse"],
+    "answer": "We offer a full refund within 30 days of purchase. After 30 days, we can offer store credit. Please have your order number ready and contact support to begin the process."
+  },
+  {
+    "id": "shipping",
+    "question": "How long does shipping take?",
+    "keywords": ["shipping", "delivery", "ship", "arrive", "track", "tracking", "package", "order", "deliver", "sent"],
+    "answer": "Standard shipping takes 5-7 business days. Express shipping (2-3 days) is available at checkout. You'll receive a tracking number by email once your order ships."
+  },
+  {
+    "id": "account",
+    "question": "How do I reset my password?",
+    "keywords": ["password", "reset", "login", "log", "account", "locked", "forgot", "sign", "access", "credential"],
+    "answer": "Click 'Forgot Password' on the login page and enter your email. You'll receive a reset link within a few minutes. If you don't see it, check your spam folder or contact support."
+  },
+  {
+    "id": "pricing",
+    "question": "What are your pricing plans?",
+    "keywords": ["price", "pricing", "cost", "plan", "subscription", "fee", "pay", "much", "charge", "rate"],
+    "answer": "We offer three plans: Starter ($19/mo), Professional ($49/mo), and Enterprise (custom pricing). Visit our pricing page for a full comparison, or I can connect you with our sales team."
+  }
+]

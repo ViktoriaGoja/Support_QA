@@ -1,0 +1,115 @@
+====================================================================
+  CXONE STUDIO SCRIPT — CHAT BOT (using REST API action)
+====================================================================
+
+  This script routes incoming chat contacts through your Claude bot.
+  If Claude can answer, the reply goes to the customer automatically.
+  If not, the chat is routed to a live agent skill.
+
+  HOW TO SET UP IN STUDIO:
+  1. Open CXone Studio
+  2. Create a new script (type: Chat)
+  3. Add the actions below in order, connecting them as described
+  4. Save and assign to your Chat point of contact
+
+====================================================================
+
+SCRIPT FLOW:
+  BEGIN → SNIPPET (build request) → REST API (call bot) →
+  SNIPPET (parse response) → IF (check escalate) →
+    YES → REQAGENT (route to human)
+    NO  → SNIPPET (send reply) → END
+
+--------------------------------------------------------------------
+ACTION 1: BEGIN
+  (Automatically added when you create the script)
+  Connect OnAnswer → Action 2
+
+--------------------------------------------------------------------
+ACTION 2: SNIPPET — "Build Bot Request"
+
+  Paste this code:
+
+    ASSIGN botUrl = "https://YOUR-SERVER.com/api/chat"
+    ASSIGN apiKey = "YOUR-BOT-API-KEY"
+
+    // Get the customer's message from the contact
+    ASSIGN customerMessage = "{ContactTextMessage}"
+    ASSIGN contactId = "{ContactId}"
+
+    // Build JSON payload
+    DYNAMIC requestBody
+    ASSIGN requestBody.contactId = contactId
+    ASSIGN requestBody.message = customerMessage
+    ASSIGN payload = "{requestBody.asJSON()}"
+
+  Connect → Action 3
+
+--------------------------------------------------------------------
+ACTION 3: REST API — "Call Claude Bot"
+
+  Configure these properties:
+    URL:              {botUrl}
+    HTTP Method:      POST
+    Headers:
+      Content-Type:   application/json
+      X-API-Key:      {apiKey}
+    Body:             {payload}
+    Timeout:          30
+    Response Variable: botResponse
+
+  Connect Success → Action 4
+  Connect Failure → Action 6 (REQAGENT — failsafe to human)
+
+--------------------------------------------------------------------
+ACTION 4: SNIPPET — "Parse Bot Response"
+
+  Paste this code:
+
+    DYNAMIC result
+    ASSIGN result = botResponse
+    ASSIGN botReply = "{result.reply}"
+    ASSIGN botEscalate = "{result.escalate}"
+    ASSIGN botConfidence = "{result.confidence}"
+
+  Connect → Action 5
+
+--------------------------------------------------------------------
+ACTION 5: IF — "Should Escalate?"
+
+  Expression:  botEscalate = "true" OR botConfidence < 50
+
+  Connect True  → Action 6 (REQAGENT)
+  Connect False → Action 7 (send reply)
+
+--------------------------------------------------------------------
+ACTION 6: REQAGENT — "Route to Human Agent"
+
+  Configure:
+    Skill: (select your live agent chat skill)
+
+  This routes the contact to your human agent queue.
+
+--------------------------------------------------------------------
+ACTION 7: SNIPPET — "Send Bot Reply"
+
+  Paste this code:
+
+    // Send the bot's reply back to the customer
+    ASSIGN __textMessage = botReply
+    // The ASSIGN to __textMessage triggers an auto-response
+    // to the customer in the chat channel
+
+  Connect → END (or loop back to Action 2 for multi-turn)
+
+--------------------------------------------------------------------
+
+NOTES:
+  - Replace YOUR-SERVER.com with your actual server URL
+  - Replace YOUR-BOT-API-KEY with the value from your .env file
+  - {ContactTextMessage} is a built-in CXone variable for the
+    customer's latest chat message
+  - For multi-turn conversations, connect Action 7 back to a
+    WAIT action, then to Action 2
+  - Test using Studio's simulation/trace mode first
+====================================================================

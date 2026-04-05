@@ -1,0 +1,251 @@
+====================================================================
+  CXONE STUDIO — V2 HTML5 CHAT BOT SCRIPT (No DX Required)
+  Workaround: Uses Wait + Loop instead of Askcaller
+====================================================================
+
+WHY THIS SCRIPT:
+  The original script used V1 ASPX + Askcaller, which failed with
+  "Not a valid chat session." This script:
+    1. Switches to V2 HTML5 chat interface (better session handling)
+    2. Replaces Askcaller with a Wait + ContactTextMessage loop
+    3. Uses the same Flask bot server — no code changes needed
+
+  If you get Digital Experience (DX) enabled later, switch to
+  DIGITAL_CHAT_BOT_SCRIPT.txt instead (cleaner approach).
+
+====================================================================
+PREREQUISITE: SWITCH CHAT TO V2 HTML5
+====================================================================
+
+  1. Go to: ACD > Contact Settings > Chat Profiles
+  2. Find your chat profile (or create a new one for testing)
+  3. In the "Customer Interface" section, change version to "V2 (HTML5)"
+  4. Save
+  5. The chat test URL stays the same — the interface just renders
+     differently in the customer's browser.
+
+  NOTE: V2 HTML5 supports pre-chat forms, queue screens, and is
+  ADA-compliant. It's an upgrade even without the bot.
+
+====================================================================
+STUDIO SCRIPT — FLOW
+====================================================================
+
+  IMPORTANT: Create a NEW script for this. Don't edit your existing
+  "Chat Bot Test" script — keep that as backup.
+  Script type: Chat (regular ACD, not Digital)
+
+  VISUAL FLOW:
+
+  BEGIN
+    │
+    ▼
+  REQAGENT (skill: "Chat Bot Test")
+    │
+    [Script pauses until agent accepts]
+
+  ONANSWER ← standalone event handler
+    │
+    ▼
+  TEXTMSG (welcome: "Hi there! Welcome to The Next Street...")
+    │
+    ▼
+  ┌─► WAIT (3 seconds)
+  │    │
+  │    ▼
+  │  SNIPPET ("Check for New Message")
+  │    │
+  │    ▼
+  │  IF (hasNewMessage = "True")
+  │    │False (no new msg)    │True (got a message!)
+  │    │                      │
+  │    └──► back to WAIT ─┐   ▼
+  │                       │  SNIPPET ("Call Bot API")
+  │                       │   │
+  │                       │   ▼
+  │                       │  IF (shouldEscalate = "True")
+  │                       │   │True              │False
+  │                       │   ▼                  ▼
+  │                       │  TEXTMSG            TEXTMSG
+  │                       │  (escalation)       (bot reply)
+  │                       │   │                  │
+  │                       │   ▼                  └──► back to WAIT
+  │                       │  REQAGENT
+  │                       │  (human skill)
+  │                       │
+  └───────────────────────┘
+
+====================================================================
+ACTION-BY-ACTION INSTRUCTIONS
+====================================================================
+
+--------------------------------------------------------------------
+ACTION 1: BEGIN
+  (Auto-created)
+  Connect Default → Action 2
+
+--------------------------------------------------------------------
+ACTION 2: REQAGENT — "Request Bot Skill"
+
+  Properties:
+    Skill: Chat Bot Test  (ID: 35628172)
+
+  Connect Default → (nothing — waits for agent)
+
+  NOTE: The "agent" accepting this is the bot flow. You need at
+  least one agent assigned to this skill and set to "Available"
+  for the chat to be accepted. Alternatively, you can auto-accept.
+
+--------------------------------------------------------------------
+ACTION 3: ONANSWER — Event Handler
+
+  STANDALONE on the canvas. Not connected to anything above.
+  Fires automatically when the agent accepts the contact.
+
+  Connect Default → Action 4
+
+--------------------------------------------------------------------
+ACTION 4: TEXTMSG — "Welcome Message"
+
+  Properties:
+    Target: Caller from system
+    Text: Hi there! Welcome to The Next Street. How can I help you today?
+
+  Connect Default → Action 5
+
+--------------------------------------------------------------------
+ACTION 5: WAIT — "Poll Timer"
+
+  Properties:
+    Seconds: 3
+
+  Connect Default → Action 6
+
+  NOTE: 3 seconds is a good balance. Too short = wasted cycles.
+  Too long = slow response. The customer won't notice the delay.
+
+--------------------------------------------------------------------
+ACTION 6: SNIPPET — "Check for New Message"
+
+  Paste this code:
+
+    // Check if customer has typed a new message
+    IF ContactTextMessage = ""
+    {
+        ASSIGN hasNewMessage = "False"
+    }
+    ELSE
+    {
+        IF ContactTextMessage = lastProcessed
+        {
+            ASSIGN hasNewMessage = "False"
+        }
+        ELSE
+        {
+            ASSIGN hasNewMessage = "True"
+        }
+    }
+
+  Connect Default → Action 7
+
+--------------------------------------------------------------------
+ACTION 7: IF — "Has New Message?"
+
+  Expression: hasNewMessage = "True"
+
+  Connect True  → Action 8 (SNIPPET — Call Bot API)
+  Connect False → Action 5 (WAIT — loop back, keep polling)
+
+--------------------------------------------------------------------
+ACTION 8: SNIPPET — "Call Bot API"
+
+  Paste this code:
+
+    ASSIGN lastProcessed = ContactTextMessage
+    ASSIGN reqBody = "{{""contactId"":""{ContactId}"",""message"":""{ContactTextMessage}""}}"
+    ASSIGN proxy = GetRESTProxy()
+    ASSIGN url = "<YOUR_TUNNEL_URL>/api/chat?api_key=tns-bot-secret-2024"
+    DYNAMIC result
+    ASSIGN result = proxy.MakeRestRequest(url, reqBody, 1, "POST")
+    ASSIGN botReply = "{result.reply}"
+    ASSIGN shouldEscalate = "{result.escalate}"
+
+  IMPORTANT: Replace <YOUR_TUNNEL_URL> with your Cloudflare
+  tunnel URL (e.g., https://tns-bot.trycloudflare.com)
+
+  Connect Default → Action 9
+
+--------------------------------------------------------------------
+ACTION 9: IF — "Should Escalate?"
+
+  Expression: shouldEscalate = "True"
+
+  Connect True  → Action 10 (TEXTMSG escalation message)
+  Connect False → Action 11 (TEXTMSG bot reply)
+
+--------------------------------------------------------------------
+ACTION 10: TEXTMSG — "Escalation Message"
+
+  Properties:
+    Target: Caller from system
+    Text: I'm connecting you with a team member now. They'll be with you shortly!
+
+  Connect Default → Action 12 (REQAGENT)
+
+--------------------------------------------------------------------
+ACTION 11: TEXTMSG — "Bot Reply"
+
+  Properties:
+    Target: Caller from system
+    Text: {botReply}
+
+  Connect Default → Action 5 (WAIT — loop back for next message)
+
+--------------------------------------------------------------------
+ACTION 12: REQAGENT — "Route to Human"
+
+  Properties:
+    Skill: (your human agent chat skill)
+
+  Connect Default → (end of bot flow — human takes over)
+
+====================================================================
+TOTAL: 12 ACTIONS
+  1. BEGIN
+  2. REQAGENT (bot skill)
+  3. ONANSWER (event handler)
+  4. TEXTMSG (welcome)
+  5. WAIT (3 sec) ◄── LOOP START
+  6. SNIPPET (check for new message)
+  7. IF (has new message?)
+  8. SNIPPET (call bot API)
+  9. IF (should escalate?)
+  10. TEXTMSG (escalation message)
+  11. TEXTMSG (bot reply) → loops to 5
+  12. REQAGENT (human agent)
+====================================================================
+
+KEY DIFFERENCE FROM OLD SCRIPT:
+  Old: Askcaller tries to capture message → FAILS ("Not a valid chat session")
+  New: Wait(3) + read ContactTextMessage → polls for messages every 3 seconds
+
+  This approach works because ContactTextMessage is populated by the
+  chat infrastructure, not by Askcaller. We just check it on a timer
+  instead of asking the action to capture it.
+
+  IF ContactTextMessage is STILL empty on V2 HTML5, then the issue
+  is deeper than the interface version, and you'll need Digital
+  Experience (DX) enabled. But V2 is worth trying first.
+
+====================================================================
+TESTING CHECKLIST:
+  [ ] Chat profile set to V2 (HTML5)
+  [ ] New script created and assigned to POC
+  [ ] Flask server running (python app.py)
+  [ ] Cloudflare tunnel running
+  [ ] Tunnel URL updated in Action 8 SNIPPET
+  [ ] Open chat test URL — do you see the V2 interface?
+  [ ] Type a greeting — does the bot respond?
+  [ ] Run Studio Trace to see if ContactTextMessage has a value
+  [ ] Test "talk to a real person" — does it escalate?
+====================================================================

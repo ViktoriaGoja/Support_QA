@@ -1,0 +1,287 @@
+====================================================================
+  CXONE STUDIO — DIGITAL CHAT BOT SCRIPT
+  (Replaces the V1 ASPX / ACD chat approach that had the
+   Askcaller "Not a valid chat session" bug)
+====================================================================
+
+WHY THIS APPROACH:
+  The old script used ACD Chat (V1 ASPX) + regular Askcaller, which
+  does NOT properly capture customer messages in bot flows.
+
+  This script uses CXone DIGITAL Chat + Digital-specific actions:
+    - Askcaller Digital (designed for chat bots, waits for replies)
+    - Textmsg Digital (sends messages on digital channels)
+    - OnAssignment (replaces OnAnswer for digital contacts)
+
+  Your Flask bot server (app.py) does NOT need any changes — the
+  /api/chat endpoint already returns the right format.
+
+====================================================================
+PREREQUISITES — CXone Admin Setup (do this FIRST)
+====================================================================
+
+STEP 1: Verify you have Digital Experience (DX)
+  - Go to CXone Admin > Digital > Points of Contact Digital
+  - If "Digital" does NOT appear in your left nav, you may need
+    your NICE account manager to enable Digital Experience.
+  - If you see it, you're good — proceed to Step 2.
+
+STEP 2: Create a Digital Chat Channel
+  - Go to: ACD > Digital > Points of Contact Digital
+  - Click "Add Channel" or "Create Channel"
+  - Select channel type: "Live Chat" (or "Chat Messaging")
+  - Name it: "AI Chat Bot"
+  - Save — CXone will generate a JavaScript embed code
+
+STEP 3: Copy the embed code
+  - After saving, go to the channel settings > "Website Script"
+  - Copy the JavaScript snippet — it looks something like:
+      <script src="https://...cxone.niceincontact.com/..."
+              async data-brand-id="..." data-channel-id="..."
+              data-customer-id="..."></script>
+  - This is what you'll put on your website INSTEAD of the old
+    V1 ASPX chat iframe/popup link.
+  - For testing, paste it into a simple test.html file.
+
+STEP 4: Create a Digital ACD Skill
+  - Go to: ACD > Contact Settings > ACD Skills
+  - Click "Create New"
+  - Media Type: "Digital"
+  - Skill Name: "AI Chat Bot Digital"
+  - Assign agents to this skill (the bot IS the agent initially)
+  - Note the Skill ID — you'll need it in the script
+
+STEP 5: Create a Human Agent Skill (for escalation)
+  - Create another Digital ACD Skill: "Chat Human Agents"
+  - Assign your real human agents to this skill
+  - Note this Skill ID too
+
+STEP 6: Create a Digital Studio Script
+  - Open CXone Studio
+  - File > New > Create new script
+  - IMPORTANT: Select script type "DIGITAL" (not "Chat" or "Phone")
+  - Name it: "Digital Chat Bot"
+
+STEP 7: Assign the script to the channel
+  - Go back to ACD > Digital > Points of Contact Digital
+  - Edit your "AI Chat Bot" channel
+  - In the Routing settings, select "Digital Chat Bot" as the script
+  - Select "AI Chat Bot Digital" as the default skill
+
+====================================================================
+STUDIO SCRIPT — ACTIONS AND FLOW
+====================================================================
+
+VISUAL FLOW:
+  ┌───────────────────────────────────────────────────────────────┐
+  │  BEGIN                                                        │
+  │    │                                                          │
+  │    ▼                                                          │
+  │  REQAGENT (skill: "AI Chat Bot Digital")                      │
+  │    │                                                          │
+  │    ▼                                                          │
+  │  [Script sleeps until contact is assigned]                    │
+  │                                                               │
+  │  ONASSIGNMENT (standalone event handler on canvas)            │
+  │    │                                                          │
+  │    ▼                                                          │
+  │  TEXTMSG DIGITAL (welcome message)                            │
+  │    │                                                          │
+  │    ▼                                                          │
+  │  ┌─► ASKCALLER DIGITAL (waits for customer message)           │
+  │  │    │                                                       │
+  │  │    ▼                                                       │
+  │  │  SNIPPET (call bot API via GetRESTProxy)                   │
+  │  │    │                                                       │
+  │  │    ▼                                                       │
+  │  │  IF (shouldEscalate = "True")                              │
+  │  │    │True              │False                               │
+  │  │    ▼                  ▼                                    │
+  │  │  TEXTMSG DIGITAL    TEXTMSG DIGITAL                        │
+  │  │  (escalation msg)   (bot reply)                            │
+  │  │    │                  │                                    │
+  │  │    ▼                  └──► back to ASKCALLER DIGITAL ──┐   │
+  │  │  REQAGENT                                              │   │
+  │  │  (skill: "Chat Human Agents")                          │   │
+  │  │                                                        │   │
+  │  └────────────────────────────────────────────────────────┘   │
+  └───────────────────────────────────────────────────────────────┘
+
+--------------------------------------------------------------------
+ACTION 1: BEGIN
+  (Auto-created when you make the script)
+  Connect Default → Action 2 (REQAGENT)
+
+--------------------------------------------------------------------
+ACTION 2: REQAGENT — "Request Bot Skill"
+
+  Properties:
+    Skill: "AI Chat Bot Digital" (or use skill variable)
+    Priority: (leave default)
+
+  Connect Default → (nothing; script sleeps)
+
+  NOTE: For digital scripts, after REQAGENT the script sleeps
+  until the contact is assigned. All further logic goes in
+  the ONASSIGNMENT event handler.
+
+--------------------------------------------------------------------
+ACTION 3: ONASSIGNMENT — Event Handler (standalone on canvas)
+
+  IMPORTANT: This is a STANDALONE event handler. It sits on the
+  canvas by itself, NOT connected to BEGIN or REQAGENT.
+  It fires automatically when the contact is assigned.
+
+  (This replaces ONANSWER which is for voice/legacy ACD chat)
+
+  Connect Default → Action 4 (TEXTMSG DIGITAL welcome)
+
+--------------------------------------------------------------------
+ACTION 4: TEXTMSG DIGITAL — "Welcome Message"
+
+  Properties:
+    Message: Hi there! Welcome to The Next Street. How can I help you today?
+    Message Format: Text
+    Message Author: System
+
+  Connect Default → Action 5 (ASKCALLER DIGITAL)
+
+--------------------------------------------------------------------
+ACTION 5: ASKCALLER DIGITAL — "Wait for Customer Message"
+
+  Properties:
+    Message: (leave blank — we already sent our message)
+    Message Format: Text
+    Timeout Sec: 300   (5 minutes — customer has time to type)
+
+  Connect CallerResponded → Action 6 (SNIPPET)
+  Connect Timeout → Action 9 (TEXTMSG DIGITAL timeout message)
+  Connect Error → Action 8 (REQAGENT escalation)
+
+  OUTPUT VARIABLE:
+    The customer's reply is captured in the Askcaller Digital's
+    output variable. Set this to: customerReply
+
+  NOTE: Unlike regular Askcaller, the Digital version is DESIGNED
+  for chat — it properly waits for and captures the customer's
+  typed message.
+
+--------------------------------------------------------------------
+ACTION 6: SNIPPET — "Call Bot API"
+
+  Paste this code:
+
+    IF customerReply = ""
+    {
+        ASSIGN botReply = ""
+        ASSIGN shouldEscalate = "False"
+    }
+    ELSE
+    {
+        IF customerReply = lastProcessed
+        {
+            ASSIGN botReply = ""
+            ASSIGN shouldEscalate = "False"
+        }
+        ELSE
+        {
+            ASSIGN lastProcessed = customerReply
+            ASSIGN reqBody = "{{""contactId"":""{ContactId}"",""message"":""{customerReply}""}}"
+            ASSIGN proxy = GetRESTProxy()
+            ASSIGN url = "<YOUR_SERVER_URL>/api/chat?api_key=tns-bot-secret-2024"
+            DYNAMIC result
+            ASSIGN result = proxy.MakeRestRequest(url, reqBody, 1, "POST")
+            ASSIGN botReply = "{result.reply}"
+            ASSIGN shouldEscalate = "{result.escalate}"
+        }
+    }
+
+  IMPORTANT: Replace <YOUR_SERVER_URL> with your Cloudflare tunnel
+  URL or production server URL.
+
+  Connect Default → Action 7 (IF)
+
+--------------------------------------------------------------------
+ACTION 7: IF — "Check Escalation"
+
+  Expression: shouldEscalate = "True"
+
+  Connect True  → Action 8 (REQAGENT for human)
+  Connect False → Action 10 (TEXTMSG DIGITAL reply)
+
+  NOTE: If botReply is empty (duplicate or blank message), the
+  False branch goes to TEXTMSG which will send nothing, then
+  loops back to ASKCALLER to wait for next message. You can
+  add an extra IF to check for empty botReply if preferred.
+
+--------------------------------------------------------------------
+ACTION 8: REQAGENT — "Escalate to Human Agent"
+
+  Properties:
+    Skill: "Chat Human Agents"
+
+  This transfers the contact to your human agent queue.
+  The human agent will see the full chat transcript.
+
+  Connect Default → (end of bot flow — human takes over)
+
+  OPTIONAL: Add a TEXTMSG DIGITAL before this action:
+    Message: "I'm connecting you with a team member now. They'll
+    have our full conversation for context. One moment please!"
+
+--------------------------------------------------------------------
+ACTION 9: TEXTMSG DIGITAL — "Timeout Message"
+
+  Properties:
+    Message: Are you still there? Feel free to type your question whenever you're ready.
+    Message Format: Text
+
+  Connect Default → Action 5 (ASKCALLER DIGITAL — loop back)
+
+  (Gives the customer another chance. If they time out again,
+   you could escalate or end.)
+
+--------------------------------------------------------------------
+ACTION 10: TEXTMSG DIGITAL — "Send Bot Reply"
+
+  Properties:
+    Message: {botReply}
+    Message Format: Text
+    Message Author: System
+
+  Connect Default → Action 5 (ASKCALLER DIGITAL — loop back)
+
+  This creates the conversation loop:
+    Customer types → bot replies → wait for next message → repeat
+
+====================================================================
+TOTAL: 10 ACTIONS
+  1. BEGIN
+  2. REQAGENT (bot skill)
+  3. ONASSIGNMENT (event handler)
+  4. TEXTMSG DIGITAL (welcome)
+  5. ASKCALLER DIGITAL (wait for message)  ◄── LOOP TARGET
+  6. SNIPPET (call bot API)
+  7. IF (check escalation)
+  8. REQAGENT (human skill — escalation path)
+  9. TEXTMSG DIGITAL (timeout — loops back to 5)
+  10. TEXTMSG DIGITAL (bot reply — loops back to 5)
+====================================================================
+
+TESTING:
+  1. Start your Flask server:  python app.py
+  2. Start Cloudflare tunnel:  cloudflared tunnel --url http://localhost:5000
+  3. Update the URL in Action 6 (SNIPPET) with the tunnel URL
+  4. Open the chat widget (from the Digital channel embed code)
+  5. Type a question — you should see the bot reply!
+  6. Type "talk to a real person" — should escalate to human queue
+  7. Use Studio Trace to debug if anything goes wrong
+
+DEBUGGING WITH TRACE:
+  - In Studio, click Debug > Trace
+  - Start a chat, then look at the trace output
+  - Check that customerReply has the customer's text
+  - Check that the SNIPPET executes and botReply has a value
+  - If customerReply is populated, the Digital approach works!
+
+====================================================================

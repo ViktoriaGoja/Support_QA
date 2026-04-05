@@ -1,0 +1,21 @@
+services:
+  - type: web
+    name: cxone-faq-bot
+    runtime: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn app:app --bind 0.0.0.0:$PORT --workers 2 --timeout 120
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.0
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: COMPANY_NAME
+        value: The Next Street
+      - key: CLAUDE_MODEL
+        value: claude-sonnet-4-20250514
+      - key: BOT_API_KEY
+        sync: false
+      - key: ESCALATION_PHRASE
+        value: "[ESCALATE]"
+      - key: FALLBACK_MESSAGE
+        value: "I'm not sure I can help with that. Let me connect you with a team member."
