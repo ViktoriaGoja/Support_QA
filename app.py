@@ -282,14 +282,10 @@ def health():
         cxone_ok = get_client().ping()
     except Exception:
         pass
-    api_key_set = bool(os.getenv("ANTHROPIC_API_KEY"))
-    api_key_len = len(os.getenv("ANTHROPIC_API_KEY", ""))
     return jsonify({
         "status": "ok",
         "engine": _engine,
         "cxone_connected": cxone_ok,
-        "api_key_set": api_key_set,
-        "api_key_length": api_key_len,
     })
 
 
