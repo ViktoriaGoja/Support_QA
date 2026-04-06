@@ -1,10 +1,15 @@
 ====================================================================
-  CXONE STUDIO SCRIPT — EMAIL BOT (using REST API action)
+  CXONE STUDIO SCRIPT — EMAIL BOT (WORKING — April 6, 2026)
 ====================================================================
 
   This script handles inbound emails. Claude reads the email and
   drafts a reply. If it can answer, the reply is sent automatically.
   If not, the email is routed to a human agent.
+
+  TESTED AND WORKING with:
+  - POC: emailbot@incontactemail.com
+  - Skill: Email Bot Test (ID: 35628180)
+  - Server: Flask + Cloudflare tunnel (or Render.com)
 
   HOW TO SET UP IN STUDIO:
   1. Open CXone Studio
@@ -15,67 +20,67 @@
 ====================================================================
 
 SCRIPT FLOW:
-  BEGIN → SNIPPET (extract email) → REST API (call bot) →
-  SNIPPET (parse response) → IF (check escalate) →
+  BEGIN → GETEMAIL → SNIPPET (call bot API) →
+  IF (empty reply?) → IF (check escalate?) →
     YES → REQAGENT (route to human)
     NO  → REPLY (send email reply) → END
 
 --------------------------------------------------------------------
 ACTION 1: BEGIN
-  Connect OnAnswer → Action 2
+  Connect Default → Action 2 (GETEMAIL)
 
 --------------------------------------------------------------------
-ACTION 2: SNIPPET — "Extract Email Details"
+ACTION 2: GETEMAIL — "Extract Email Details"
 
-  Paste this code:
-
-    ASSIGN botUrl = "https://YOUR-SERVER.com/api/email"
-    ASSIGN apiKey = "YOUR-BOT-API-KEY"
-
-    // Get email details from the contact
-    ASSIGN emailFrom = "{from}"
-    ASSIGN emailSubject = "{subject}"
-    ASSIGN emailBody = "{body}"
-    ASSIGN contactId = "{ContactId}"
-
-    // Build JSON payload
-    DYNAMIC requestBody
-    ASSIGN requestBody.contactId = contactId
-    ASSIGN requestBody.from = emailFrom
-    ASSIGN requestBody.subject = emailSubject
-    ASSIGN requestBody.body = emailBody
-    ASSIGN payload = "{requestBody.asJSON()}"
-
-  Connect → Action 3
-
---------------------------------------------------------------------
-ACTION 3: REST API — "Call Claude Bot"
+  CRITICAL: You MUST use GETEMAIL to extract email variables.
+  They are NOT automatically available like {ContactId} is.
 
   Configure these properties:
-    URL:              {botUrl}
-    HTTP Method:      POST
-    Headers:
-      Content-Type:   application/json
-      X-API-Key:      {apiKey}
-    Body:             {payload}
-    Timeout:          60  (emails may take longer)
-    Response Variable: botResponse
+    Container Variables:    EML
+    Subject Variable:       emailSubject
+    From Variable:          emailFrom
+    Body Text Variable:     emailBody
 
-  Connect Success → Action 4
-  Connect Failure → Action 6 (REQAGENT)
+  Connect Default → Action 3 (SNIPPET)
 
 --------------------------------------------------------------------
-ACTION 4: SNIPPET — "Parse Bot Response"
+ACTION 3: SNIPPET — "Call Claude Bot API"
 
   Paste this code:
 
+    ASSIGN proxy = GetRESTProxy()
+    ASSIGN proxy.ContentType = "application/json"
+    ASSIGN proxy.ProxyTimeoutSeconds = 30
+    ASSIGN botUrl = "https://YOUR-SERVER.com/api/email?api_key=YOUR-BOT-API-KEY"
+
+    DYNAMIC requestBody
+    ASSIGN requestBody.contactId = "{ContactId}"
+    ASSIGN requestBody.from = "{emailFrom}"
+    ASSIGN requestBody.subject = "{emailSubject}"
+    ASSIGN requestBody.body = "{emailBody}"
+    ASSIGN payload = "{requestBody.asJSON()}"
+
     DYNAMIC result
-    ASSIGN result = botResponse
+    ASSIGN result = proxy.MakeRestRequest(botUrl, payload, 0, "POST")
+
     ASSIGN botReply = "{result.reply}"
     ASSIGN botEscalate = "{result.escalate}"
-    ASSIGN botSubject = "{result.subject}"
 
-  Connect → Action 5
+  IMPORTANT NOTES on MakeRestRequest:
+    - proxy.ContentType MUST be "application/json" (default is form-urlencoded)
+    - proxy.ProxyTimeoutSeconds MUST be 30+ (default is 10, Claude needs more)
+    - Parameter 3 (P3) MUST be 0 for JSON (0=JSON, 1=XML)
+    - Parameter 4 is the HTTP verb ("POST")
+
+  Connect Default → Action 4
+
+--------------------------------------------------------------------
+ACTION 4: IF — "Bot Reply Empty?"
+
+  Expression:  botReply = ""
+
+  Connect True  → Action 6 (REQAGENT — fallback if API failed)
+  Connect False → Action 5
 
 --------------------------------------------------------------------
 ACTION 5: IF — "Should Escalate?"
@@ -95,24 +100,26 @@ ACTION 6: REQAGENT — "Route to Human Agent"
 ACTION 7: REPLY — "Send Email Reply"
 
   Configure:
-    Body: {botReply}
+    Body/Message: {botReply}
 
   NOTE: The REPLY action in CXone automatically sends an email
-  reply to the original sender. Be careful:
-    - Do NOT use REPLY if the "from" address is your own point
-      of contact address (this would create a loop).
-    - The REPLY action is terminal — it ends the contact.
+  reply to the original sender.
 
   Connect → END
 
 --------------------------------------------------------------------
 
-NOTES:
-  - Replace YOUR-SERVER.com with your actual server URL
-  - Replace YOUR-BOT-API-KEY with the value from your .env file
-  - The built-in variables {from}, {subject}, {body} contain
-    the inbound email details
-  - Consider adding a delay or review step if you want a human
-    to approve email replies before they go out
-  - Test with internal email addresses first!
+LESSONS LEARNED (April 6, 2026):
+  1. {from}, {subject}, {body} do NOT work in email scripts.
+     You MUST use GETEMAIL action first to extract email fields
+     into named variables (emailFrom, emailSubject, emailBody).
+  2. GetRESTProxy() default Content-Type is form-urlencoded,
+     NOT application/json. Must set proxy.ContentType explicitly.
+  3. GetRESTProxy() default timeout is 10 seconds — too short
+     for Claude API. Set proxy.ProxyTimeoutSeconds = 30.
+  4. MakeRestRequest P3 parameter: 0=JSON, 1=XML. Use 0 for JSON.
+  5. REST API action does NOT work in CXone — use GetRESTProxy()
+     + MakeRestRequest() in a Snippet instead.
+  6. API key goes in the URL query param (?api_key=xxx) because
+     custom headers with hyphens break Studio script saving.
 ====================================================================

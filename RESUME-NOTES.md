@@ -113,7 +113,19 @@ cloudflared tunnel --url http://localhost:5000
 Note the random URL it generates (e.g., https://xxx-xxx-xxx-xxx.trycloudflare.com)
 Then update the `url` variable in the CXone Studio Snippet action with the new URL.
 
-## Current Status (Updated April 5, 2026)
+## Current Status (Updated April 6, 2026)
+
+### EMAIL BOT — WORKING ✅ (April 6, 2026)
+- POC: emailbot@incontactemail.com (test POC)
+- Skill: Email Bot Test (ID: 35628180)
+- Script: "Email Bot Test" in CXone Studio
+- Flow: BEGIN → GETEMAIL → SNIPPET → IF (empty?) → IF (escalate?) → REPLY / REQAGENT
+- Server: Flask /api/email endpoint + Cloudflare tunnel
+- Successfully sends Claude-generated email replies to customers
+- Key fixes needed: GETEMAIL action (email vars not auto-available), proxy.ContentType="application/json", proxy.ProxyTimeoutSeconds=30, MakeRestRequest P3=0 (JSON not XML)
+- Next: Deploy to Render.com for permanent URL, then point production help@ POC to this script
+
+### CHAT BOT — Still Blocked (April 5, 2026)
 
 ### What works
 - Flask server runs correctly, Claude API integration works

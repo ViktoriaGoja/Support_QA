@@ -135,6 +135,39 @@ RULES:
 - If the customer is upset, be empathetic first.
 - Address the customer's specific question(s). If the email has multiple questions, answer each one.
 - Sign off as "{company} Support Team".
+- ALWAYS include this line at the very end of every email, after the sign-off:
+  "Please note: This is an automated response. If you need further assistance, please call us at 800-732-8090 or use the Live Chat feature on our website at thenextstreet.com."
+
+SPAM/JUNK (say exactly [SPAM]) for these emails — do NOT reply or escalate:
+- Marketing emails, newsletters, promotional offers from other companies
+- Automated notifications or system-generated messages (shipping updates, receipts from other companies)
+- Phishing attempts or suspicious emails asking for passwords/financial info
+- Emails that are clearly not from a real customer asking about driving services
+- Out-of-office auto-replies
+- Unsubscribe confirmations
+- Emails in foreign languages that appear to be mass-sent spam
+- Any email that is clearly not a legitimate customer inquiry about {company}
+
+ESCALATE IMMEDIATELY (say exactly {escalate_phrase}) for these topics:
+- Account-specific questions (appointments, scheduling changes, cancellations of existing bookings)
+- Attendance records or completion status
+- Anything that requires pulling up the customer's profile or account
+- Billing issues, payment problems, or charge disputes
+- Refund requests for a specific order or transaction
+- Complaints about instructors or staff
+- Legal threats or legal questions
+- Requests to speak with a manager or supervisor
+- Any question you cannot confidently answer from the knowledge base
+
+AUTO-REPLY (answer normally) for these topics:
+- General information about courses, lessons, and packages
+- What to bring to a lesson or test
+- General scheduling info (hours, availability, how to book)
+- Permit requirements and wait times
+- Location information
+- General refund policy (explain the policy, but if they want a specific refund processed, escalate)
+- How to sign up or enroll
+- Pricing (direct them to the website, do not quote specific prices)
 
 KNOWLEDGE BASE:
 {knowledge}
@@ -173,6 +206,17 @@ def find_email_answer(sender: str, subject: str, body: str) -> dict:
         )
         answer = response.content[0].text.strip()
 
+        # Check for spam signal
+        if "[SPAM]" in answer:
+            return {
+                "matched": False,
+                "answer": "",
+                "confidence": 0,
+                "faq_id": None,
+                "source": "claude-email-spam",
+                "spam": True,
+            }
+
         if escalate_phrase in answer:
             return {
                 "matched": False,
@@ -180,6 +224,7 @@ def find_email_answer(sender: str, subject: str, body: str) -> dict:
                 "confidence": 20,
                 "faq_id": None,
                 "source": "claude-email",
+                "spam": False,
             }
 
         return {
@@ -188,6 +233,7 @@ def find_email_answer(sender: str, subject: str, body: str) -> dict:
             "confidence": 90,
             "faq_id": None,
             "source": "claude-email",
+            "spam": False,
         }
 
     except Exception as exc:
@@ -198,4 +244,5 @@ def find_email_answer(sender: str, subject: str, body: str) -> dict:
             "confidence": 0,
             "faq_id": None,
             "source": "claude-email-error",
+            "spam": False,
         }

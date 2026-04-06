@@ -14,7 +14,9 @@ Endpoints:
   GET  /health       – health check
 """
 
-import hashlib, hmac, logging, os
+import hashlib, hmac, json, logging, os
+from datetime import datetime
+from pathlib import Path
 from flask import Flask, request, jsonify
 from dotenv import load_dotenv
 
@@ -124,6 +126,46 @@ def handle_chat():
 # ─────────────────────────────────────────────────────────────────
 #  EMAIL endpoint — called by Studio REST API action
 # ─────────────────────────────────────────────────────────────────
+# ── Email transcript logging ────────────────────────────────────
+EMAIL_LOG_DIR = Path(__file__).parent / "email_logs"
+EMAIL_LOG_DIR.mkdir(exist_ok=True)
+
+
+def _save_email_log(contact_id, sender, subject, body, reply, escalated, spam):
+    """Save full email interaction to a log file for record-keeping."""
+    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    date_str = datetime.now().strftime("%Y-%m-%d")
+    log_file = EMAIL_LOG_DIR / f"emails_{date_str}.log"
+
+    if spam:
+        status = "SPAM (dropped)"
+    elif escalated:
+        status = "ESCALATED to human agent"
+    else:
+        status = "AUTO-REPLIED"
+
+    entry = (
+        f"\n{'='*70}\n"
+        f"[{timestamp}] Contact ID: {contact_id}\n"
+        f"Status: {status}\n"
+        f"{'='*70}\n"
+        f"FROM: {sender}\n"
+        f"SUBJECT: {subject}\n"
+        f"{'─'*70}\n"
+        f"CUSTOMER EMAIL:\n{body}\n"
+        f"{'─'*70}\n"
+        f"BOT REPLY:\n{reply if reply else '(none — escalated or spam)'}\n"
+        f"{'='*70}\n"
+    )
+
+    try:
+        with open(log_file, "a", encoding="utf-8") as f:
+            f.write(entry)
+        log.info(f"[EMAIL {contact_id}] Transcript saved to {log_file.name}")
+    except Exception as exc:
+        log.error(f"[EMAIL {contact_id}] Failed to save transcript: {exc}")
+
+
 @app.route("/api/email", methods=["POST"])
 def handle_email():
     """
@@ -179,16 +221,30 @@ def handle_email():
         subject=subject,
         body=body,
     )
+    is_spam = result.get("spam", False)
+    escalated = not result["matched"]
     log.info(
         f"[EMAIL {contact_id}] → matched={result['matched']}  "
-        f"confidence={result['confidence']}"
+        f"confidence={result['confidence']}  spam={is_spam}"
+    )
+
+    # Save full email transcript to log file
+    _save_email_log(
+        contact_id=contact_id,
+        sender=sender,
+        subject=subject,
+        body=body,
+        reply=result["answer"],
+        escalated=escalated,
+        spam=is_spam,
     )
 
     return jsonify({
         "reply": result["answer"],
-        "escalate": not result["matched"],
+        "escalate": escalated,
         "confidence": result["confidence"],
         "subject": f"Re: {subject}",
+        "spam": is_spam,
     })
 
 
