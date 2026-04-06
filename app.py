@@ -14,11 +14,12 @@ Endpoints:
   GET  /health       – health check
 """
 
-import hashlib, hmac, json, logging, os
+import hashlib, hmac, json, logging, os, threading
 from datetime import datetime
 from pathlib import Path
 from flask import Flask, request, jsonify
 from dotenv import load_dotenv
+import requests as http_requests
 
 load_dotenv(override=True)
 
@@ -165,6 +166,34 @@ def _save_email_log(contact_id, sender, subject, body, reply, escalated, spam):
         log.info(f"[EMAIL {contact_id}] Transcript saved to {log_file.name}")
     except Exception as exc:
         log.error(f"[EMAIL {contact_id}] Failed to save transcript: {exc}")
+
+    # Log to Google Sheets (non-blocking)
+    _log_to_google_sheets(contact_id, sender, subject, body, reply, status)
+
+
+def _log_to_google_sheets(contact_id, sender, subject, body, reply, status):
+    """Send transcript to Google Sheets via Apps Script webhook (async)."""
+    sheets_url = os.getenv("GOOGLE_SHEETS_WEBHOOK", "")
+    if not sheets_url:
+        return
+
+    def _send():
+        try:
+            payload = {
+                "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                "contactId": contact_id,
+                "from": sender,
+                "subject": subject,
+                "body": body,
+                "reply": reply if reply else "(none — escalated or spam)",
+                "status": status,
+            }
+            resp = http_requests.post(sheets_url, json=payload, timeout=10)
+            log.info(f"[EMAIL {contact_id}] Google Sheets log: {resp.status_code}")
+        except Exception as exc:
+            log.error(f"[EMAIL {contact_id}] Google Sheets log failed: {exc}")
+
+    threading.Thread(target=_send, daemon=True).start()
 
 
 @app.route("/api/email", methods=["POST"])
