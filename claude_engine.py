@@ -237,12 +237,14 @@ def find_email_answer(sender: str, subject: str, body: str) -> dict:
         }
 
     except Exception as exc:
-        print(f"[claude_engine] Email API error: {exc}")
+        import traceback
+        tb = traceback.format_exc()
+        print(f"[claude_engine] Email API error: {exc}\n{tb}")
         return {
             "matched": False,
             "answer": fallback,
             "confidence": 0,
             "faq_id": None,
-            "source": f"claude-email-error: {exc}",
+            "source": f"claude-email-error: {type(exc).__name__}: {exc} | cause: {type(exc.__cause__).__name__ if exc.__cause__ else 'none'}",
             "spam": False,
         }
