@@ -133,7 +133,7 @@ EMAIL_LOG_DIR = Path(__file__).parent / "email_logs"
 EMAIL_LOG_DIR.mkdir(exist_ok=True)
 
 
-def _save_email_log(contact_id, sender, subject, body, reply, escalated, spam):
+def _save_email_log(contact_id, sender, subject, body, reply, escalated, spam, reason=""):
     """Save full email interaction to a log file for record-keeping."""
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     date_str = datetime.now().strftime("%Y-%m-%d")
@@ -168,10 +168,10 @@ def _save_email_log(contact_id, sender, subject, body, reply, escalated, spam):
         log.error(f"[EMAIL {contact_id}] Failed to save transcript: {exc}")
 
     # Log to Google Sheets (non-blocking)
-    _log_to_google_sheets(contact_id, sender, subject, body, reply, status)
+    _log_to_google_sheets(contact_id, sender, subject, body, reply, status, reason)
 
 
-def _log_to_google_sheets(contact_id, sender, subject, body, reply, status):
+def _log_to_google_sheets(contact_id, sender, subject, body, reply, status, reason=""):
     """Send transcript to Google Sheets via Apps Script webhook (async)."""
     sheets_url = os.getenv("GOOGLE_SHEETS_WEBHOOK", "")
     if not sheets_url:
@@ -187,6 +187,7 @@ def _log_to_google_sheets(contact_id, sender, subject, body, reply, status):
                 "body": body,
                 "reply": reply if reply else "(none — escalated or spam)",
                 "status": status,
+                "reason": reason,
             }
             resp = http_requests.post(sheets_url, json=payload, timeout=10)
             log.info(f"[EMAIL {contact_id}] Google Sheets log: {resp.status_code}")
@@ -239,6 +240,7 @@ def handle_email():
     log.info(f"[EMAIL {contact_id}] From: {sender}  Subject: {subject}")
 
     if not body:
+        _save_email_log(contact_id, sender, subject, "(empty body)", "", True, False, "Empty email body — escalated to agent")
         return jsonify({
             "reply": "",
             "escalate": True,
@@ -267,6 +269,7 @@ def handle_email():
         reply=result["answer"],
         escalated=escalated,
         spam=is_spam,
+        reason=result.get("reason", ""),
     )
 
     return jsonify({

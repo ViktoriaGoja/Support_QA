@@ -138,6 +138,10 @@ RULES:
 - ALWAYS include this line at the very end of every email, after the sign-off:
   "Please note: This is an automated response. If you need further assistance, please call us at 800-732-8090 or use the Live Chat feature on our website at thenextstreet.com."
 
+IMPORTANT: Before your reply (or before [SPAM] or {escalate_phrase}), include a brief internal note on the FIRST line in this exact format:
+[REASON: one sentence explaining why you chose to auto-reply, escalate, or mark as spam]
+This line will be stripped from the customer reply — it is for internal logging only.
+
 SPAM/JUNK (say exactly [SPAM]) for these emails — do NOT reply or escalate:
 - Marketing emails, newsletters, promotional offers from other companies
 - Automated notifications or system-generated messages (shipping updates, receipts from other companies)
@@ -204,10 +208,23 @@ def find_email_answer(sender: str, subject: str, body: str) -> dict:
             system=system_prompt,
             messages=[{"role": "user", "content": user_content}],
         )
-        answer = response.content[0].text.strip()
+        raw_answer = response.content[0].text.strip()
+
+        # Extract reason from first line if present
+        reason = ""
+        answer = raw_answer
+        if raw_answer.startswith("[REASON:"):
+            first_newline = raw_answer.find("\n")
+            if first_newline > 0:
+                reason_line = raw_answer[:first_newline].strip()
+                reason = reason_line.replace("[REASON:", "").rstrip("]").strip()
+                answer = raw_answer[first_newline:].strip()
+            else:
+                reason = raw_answer.replace("[REASON:", "").rstrip("]").strip()
+                answer = ""
 
         # Check for spam signal
-        if "[SPAM]" in answer:
+        if "[SPAM]" in raw_answer:
             return {
                 "matched": False,
                 "answer": "",
@@ -215,9 +232,10 @@ def find_email_answer(sender: str, subject: str, body: str) -> dict:
                 "faq_id": None,
                 "source": "claude-email-spam",
                 "spam": True,
+                "reason": reason or "Detected as spam",
             }
 
-        if escalate_phrase in answer:
+        if escalate_phrase in raw_answer:
             return {
                 "matched": False,
                 "answer": fallback,
@@ -225,6 +243,7 @@ def find_email_answer(sender: str, subject: str, body: str) -> dict:
                 "faq_id": None,
                 "source": "claude-email",
                 "spam": False,
+                "reason": reason or "Could not answer from knowledge base",
             }
 
         return {
@@ -234,6 +253,7 @@ def find_email_answer(sender: str, subject: str, body: str) -> dict:
             "faq_id": None,
             "source": "claude-email",
             "spam": False,
+            "reason": reason or "Answered from knowledge base",
         }
 
     except Exception as exc:
@@ -245,4 +265,5 @@ def find_email_answer(sender: str, subject: str, body: str) -> dict:
             "faq_id": None,
             "source": "claude-email-error",
             "spam": False,
+            "reason": f"API error: {exc}",
         }
