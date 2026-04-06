@@ -246,7 +246,6 @@ def handle_email():
         "confidence": result["confidence"],
         "subject": f"Re: {subject}",
         "spam": is_spam,
-        "debug_source": result["source"],
     })
 
 
@@ -284,26 +283,10 @@ def health():
         cxone_ok = get_client().ping()
     except Exception:
         pass
-    # Quick Claude API test
-    claude_ok = False
-    claude_err = ""
-    if _engine == "claude":
-        try:
-            import anthropic
-            c = anthropic.Anthropic()
-            r = c.messages.create(model=os.getenv("CLAUDE_MODEL", "claude-sonnet-4-20250514"),
-                                  max_tokens=10, messages=[{"role": "user", "content": "hi"}])
-            claude_ok = True
-        except Exception as e:
-            import traceback
-            claude_err = f"{type(e).__name__}: {e} | cause: {type(e.__cause__).__name__}: {e.__cause__}" if e.__cause__ else f"{type(e).__name__}: {e}"
-
     return jsonify({
         "status": "ok",
         "engine": _engine,
         "cxone_connected": cxone_ok,
-        "claude_api_ok": claude_ok,
-        "claude_error": claude_err,
     })
 
 
