@@ -63,9 +63,10 @@ in-person instruction taught by RMV-approved instructors at licensed locations.
 Covers all Massachusetts RMV classroom requirements for new drivers.
 
 Eligibility:
-- Can enroll at any time, even before 16th birthday
 - Must be at least 15 years and 9 months old to begin classroom instruction
 - No learner's permit needed to start — course helps prepare for written permit exam
+- Important: All services expire 2 years from enrollment. Do not enroll until you
+  are eligible to begin and can complete the program within 2 years.
 
 License Timeline (Massachusetts):
 - Teens (under 18): Must hold permit at least 6 months. Must complete 30 hours
@@ -406,6 +407,8 @@ Appointments approximately 30 minutes long.
 eDec (digital completion certificate) is required. We issue it automatically once
 requirements are complete and upload it to your Student Portal the day before
 your test. You do NOT need to print it — it is sent electronically to the DMV.
+IMPORTANT: We cannot issue your eDec without a valid permit number on file.
+Make sure to update your permit number in the Student Portal once you have it.
 
 Note: DMV testing fees are NOT included.
 
@@ -555,6 +558,16 @@ REFUND POLICY (DETAILED)
 - A la carte (individual) products purchased within the last 6 months are
   eligible for a refund, subject to a 10% processing fee.
 - No refunds after 6 months from purchase date.
+
+SERVICE EXPIRATION POLICY
+- All services expire 2 years from the date of enrollment.
+- After 2 years, any unused or incomplete services are forfeited and the student
+  must re-enroll and repurchase to continue.
+- Students should not enroll until they are eligible to receive credit for the
+  service. For example, do not enroll in driving lessons before you have your
+  learner's permit, as the 2-year clock starts at enrollment regardless of
+  whether you are ready to begin.
+- Plan ahead to ensure you can complete all services within the 2-year window.
 
 FOOTWEAR POLICY
 - Students MUST wear fully enclosed, sneaker-like shoes that are well-fitting
@@ -763,6 +776,12 @@ Q: How do I sign up / enroll?
 A: Visit https://www.thenextstreet.com to enroll online. All scheduling and
 progress tracking are managed through your Student Portal after enrollment.
 
+Q: Do my services expire?
+A: Yes. All services expire 2 years from the date of enrollment. If you do not
+complete your services within that time, they are forfeited and you would need
+to re-enroll. We recommend not enrolling until you are eligible to receive credit
+for the service to make the most of your 2-year window.
+
 Q: Do I need a learner's permit to start?
 A: You do NOT need a permit to start classroom courses. However, you WILL need
 a valid learner's permit before you can schedule driving lessons or a road test.
@@ -800,6 +819,9 @@ requirements (sessions, quizzes, attendance forms) are complete. Complete
 everything at least 5 days before your scheduled test date. If you are testing
 at The Next Street, your eDec is uploaded to your Student Portal the day before
 your test. You do NOT need to print it — it is sent electronically to the DMV.
+IMPORTANT: We cannot issue your eDec without a valid permit number on file.
+Please make sure to update your permit number in your Student Portal as soon
+as you receive your permit.
 
 Q: What is a Driver Education Certificate?
 A: In Massachusetts, it's the official RMV certificate issued after completing
