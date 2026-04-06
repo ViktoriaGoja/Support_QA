@@ -114,7 +114,7 @@ def find_answer(message: str) -> dict:
             "answer": fallback,
             "confidence": 0,
             "faq_id": None,
-            "source": "claude-error",
+            "source": f"claude-error: {exc}",
         }
 
 
@@ -243,6 +243,6 @@ def find_email_answer(sender: str, subject: str, body: str) -> dict:
             "answer": fallback,
             "confidence": 0,
             "faq_id": None,
-            "source": "claude-email-error",
+            "source": f"claude-email-error: {exc}",
             "spam": False,
         }

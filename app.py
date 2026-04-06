@@ -246,6 +246,7 @@ def handle_email():
         "confidence": result["confidence"],
         "subject": f"Re: {subject}",
         "spam": is_spam,
+        "debug_source": result["source"],
     })
 
 
