@@ -136,7 +136,7 @@ RULES:
 - Address the customer's specific question(s). If the email has multiple questions, answer each one.
 - Sign off as "{company} Support Team".
 - ALWAYS include this line at the very end of every email, after the sign-off:
-  "Please note: This is an automated response. If you need further assistance, please call us at 800-732-8090 or use the Live Chat feature on our website at thenextstreet.com."
+  "Please note: This is an automated response. Please do not reply to this email. If you need further assistance, please call us at 800-732-8090 or use the Live Chat feature on our website at thenextstreet.com."
 
 IMPORTANT: Before your reply (or before [SPAM] or {escalate_phrase}), include a brief internal note on the FIRST line in this exact format:
 [REASON: one sentence explaining why you chose to auto-reply, escalate, or mark as spam]
