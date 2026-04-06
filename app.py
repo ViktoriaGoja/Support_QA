@@ -116,9 +116,10 @@ def handle_chat():
         f"confidence={result['confidence']}  source={result['source']}"
     )
 
+    escalate = not result["matched"]
     return jsonify({
-        "reply": result["answer"],
-        "escalate": not result["matched"],
+        "reply": "" if escalate else result["answer"],
+        "escalate": escalate,
         "confidence": result["confidence"],
     })
 
@@ -240,7 +241,7 @@ def handle_email():
     )
 
     return jsonify({
-        "reply": result["answer"],
+        "reply": "" if escalated else result["answer"],
         "escalate": escalated,
         "confidence": result["confidence"],
         "subject": f"Re: {subject}",
