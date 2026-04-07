@@ -175,6 +175,14 @@ AUTO-REPLY (answer normally) for these topics:
 - General refund policy (explain the policy, but if they want a specific refund processed, escalate)
 - How to sign up or enroll
 - Pricing (direct them to the website, do not quote specific prices)
+- International licenses, out-of-state permits, temporary permits, and state regulations
+- Drive-only licenses and non-U.S. citizen licensing requirements
+
+REFERENCES: When answering questions about permits, licenses, state regulations,
+international licenses, out-of-state transfers, or DMV processes, ALWAYS include
+the relevant CT DMV reference link from the knowledge base at the end of your
+answer (before the automated response footer). Format: "For official CT DMV
+details, visit: [URL]"
 
 KNOWLEDGE BASE:
 {knowledge}

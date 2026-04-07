@@ -688,6 +688,130 @@ DO I NEED MY PERMIT TO START DRIVER'S ED?
 - However, you WILL need a valid permit before scheduling driving lessons
   or a road test.
 
+TEMPORARY PERMITS & PHOTO REQUIREMENTS (The Next Street Policy):
+- When you pass your permit test at the DMV, you receive a paper temporary
+  permit for immediate use. Your permanent photo permit arrives by mail
+  within approximately 20 business days.
+- IMPORTANT: The Next Street DOES NOT allow students to take driving lessons
+  with a temporary permit that does not have their photo on it. You must wait
+  for your permanent photo permit to arrive before scheduling lessons.
+- Track your permit delivery at the CT DMV customer center online.
+Reference: https://portal.ct.gov/dmv/licenses-permits-ids/get-learners-permit
+
+QUALIFIED TRAINER REQUIREMENTS (for practice driving with permit):
+- Must be at least 20 years old
+- Must have held a valid license for at least 4 consecutive years
+- No license suspensions during that 4-year period
+- Eligible trainers: spouse, parent, grandparent, foster parent, legal
+  guardian, stepparent, or sibling
+Reference: https://portal.ct.gov/dmv/licenses-permits-ids/get-learners-permit
+
+================================================================================
+CT PERMITS, LICENSES & STATE REGULATIONS
+================================================================================
+
+--- ADULT LEARNER'S PERMIT (Age 18+) ---
+- Must be 18 or older
+- Must pass vision test and 25-question knowledge test at DMV
+- Must hold permit for minimum 90 days before road test
+- Must complete 8-hour Safe Driving Practices Course at a licensed school
+- Fees: $40 testing fee + $19 permit fee = $59 total
+- 90-DAY HOLD EXEMPTIONS: Active-duty military stationed out of state,
+  previous CT permit/license holders, or those with prior out-of-state
+  driving experience (must provide expired license or driving history)
+Reference: https://portal.ct.gov/dmv/licenses-permits-ids/get-learners-permit/adult-learners-permit
+
+--- TEEN DRIVER'S LICENSE (Ages 16-17) ---
+- Step 1: Get learner's permit (age 16+, pass vision + knowledge test)
+- Step 2: Complete driver training (120-180 days with permit):
+  - Commercial school (like The Next Street): 30 hours classroom + 40 hours
+    practice driving (2 hours with instructor count toward the 40)
+  - Home training with qualified trainer: 22 hours classroom + 40 hours practice
+- Step 3: Road test (eligible after 120 days with school training, 180 days
+  with home training)
+- Must present permit, completed application, and eDec certificate at road test
+- After passing road test: Wait 48 hours before visiting DMV office for license
+- Retest waiting period: 14 days; Retest fee: $40
+- Parent/guardian of 16-17 year old must attend a 2-hour training course
+- Passenger restrictions and curfew laws apply to newly licensed 16-17 year olds
+- Extended curfew exception: driving for school or religious activities
+Reference: https://portal.ct.gov/dmv/licenses-permits-ids/teen-drivers-license
+
+--- OUT-OF-STATE LICENSE TRANSFER ---
+- New CT residents have 90 days to transfer their out-of-state license
+- Requirements: current out-of-state license (not expired more than 2 years),
+  vision test at DMV, Form R-229, acceptable ID documents
+- Fees: $84 license fee + $40 application fee = $124 total
+- License arrives by mail within 20 business days
+- Out-of-state learner's permits are NOT transferable to CT — you must apply
+  for a new CT learner's permit
+- WHO DOES NOT NEED TO TRANSFER:
+  - Full-time students maintaining out-of-state permanent residence
+  - Active-duty military and dependents
+  - Visitors on visa status (may drive up to 1 year with valid foreign license + IDP)
+- EXPIRED LICENSE (over 2 years): Must complete CT learner's permit process
+  and 8-hour Safe Driving Course before road test
+- UNDER 18: Must complete 8-hour safe driving class + 2-hour parent training;
+  subject to passenger restrictions
+- UNDER 16: Cannot transfer license to CT
+Reference: https://portal.ct.gov/dmv/licenses-permits-ids/transfer-out-of-state-license
+
+--- INTERNATIONAL DRIVER PERMITS (IDP) ---
+- An IDP is an English translation of a foreign-language license issued by
+  a country outside the U.S.
+- An IDP alone is NOT a valid license — it must accompany the original
+  valid foreign license at all times
+- Students/visitors with a valid foreign license may drive in Connecticut
+  for up to 1 year with their foreign license (IDP required if license is
+  not in English or Spanish)
+- The IDP can ONLY be obtained in the country that issued the original license
+- After 1 year, you must obtain a CT driver's license
+- Out-of-country licenses are NOT acceptable as a form of identification
+  for DMV transactions
+- CT residents traveling abroad: obtain an IDP through AAA (Automobile
+  Association of America)
+- THE NEXT STREET POLICY: Students with an international license/IDP are
+  not eligible for road testing at The Next Street. They should consult
+  with the DMV about their specific licensing path.
+Reference: https://portal.ct.gov/DMV/Licenses/Licenses/International-Driver-Permits
+
+--- NON-U.S. CITIZEN DRIVER'S LICENSE ---
+- Non-U.S. citizens seeking a first-time CT permit or license MUST go to
+  a DMV hub office (not a branch) to apply in person
+- Must prove: identity, legal presence in the U.S., and CT residency
+- Immigration status verified through SAVE program — may take 10+ business
+  days (plan ahead!)
+- Required documents:
+  - Foreign passport with supporting immigration documents
+  - I-94 (hard copy from US Customs and Border Protection website)
+  - Social Security Number proof
+  - 2 pieces of CT mail (within 90 days) proving residency
+- Non-English documents require translation by DMV-approved translator
+- Only U.S. citizens and permanent residents are eligible for REAL ID
+- DACA/DREAM Act applicants: May qualify for non-verified driver's license
+  using I-94 or Employment Authorization Card
+Reference: https://portal.ct.gov/DMV/Licenses/Licenses/Drivers-License--NonUS-Citizen--Requirements
+
+--- DRIVE-ONLY LICENSE ---
+- Designed for undocumented individuals age 16+ who cannot establish lawful
+  U.S. presence
+- NOT valid for federal identification or voting
+- May be honored in other states — verify before traveling
+- NOT ELIGIBLE if you have a felony conviction in CT or committed identity
+  fraud at CT DMV
+- Process: documents → knowledge + vision test → learner's permit by mail →
+  driver training → road test → drive-only license by mail
+- Fees: $40 testing + $19 permit + $36 license (3-year validity)
+- DMV conducts criminal background checks
+- Must sign affidavit committing to file immigration legalization
+  applications when eligible
+- Drive-only licenses CANNOT be transferred from another state — must apply
+  in CT
+- THE NEXT STREET POLICY: Students with a drive-only learner's permit follow
+  the same training path as standard permit holders. The drive-only permit
+  must have a photo to schedule lessons.
+Reference: https://portal.ct.gov/dmv/licenses-permits-ids/get-drive-only-license
+
 ================================================================================
 CT DRIVING LESSON SYLLABUS (What to Expect at Each Lesson)
 ================================================================================
