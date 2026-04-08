@@ -50,7 +50,7 @@ ACTION 3: SNIPPET — "Call Claude Bot API"
 
     ASSIGN proxy = GetRESTProxy()
     ASSIGN proxy.ContentType = "application/json"
-    ASSIGN proxy.ProxyTimeoutSeconds = 30
+    ASSIGN proxy.ProxyTimeoutSeconds = 90
     ASSIGN botUrl = "https://YOUR-SERVER.com/api/email?api_key=YOUR-BOT-API-KEY"
 
     DYNAMIC requestBody
@@ -116,7 +116,7 @@ LESSONS LEARNED (April 6, 2026):
   2. GetRESTProxy() default Content-Type is form-urlencoded,
      NOT application/json. Must set proxy.ContentType explicitly.
   3. GetRESTProxy() default timeout is 10 seconds — too short
-     for Claude API. Set proxy.ProxyTimeoutSeconds = 30.
+     for Claude API. Set proxy.ProxyTimeoutSeconds = 90.
   4. MakeRestRequest P3 parameter: 0=JSON, 1=XML. Use 0 for JSON.
   5. REST API action does NOT work in CXone — use GetRESTProxy()
      + MakeRestRequest() in a Snippet instead.
