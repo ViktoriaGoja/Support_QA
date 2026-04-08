@@ -18,6 +18,7 @@ import hashlib, hmac, json, logging, os, threading
 from datetime import datetime
 from pathlib import Path
 from flask import Flask, request, jsonify
+from flask_cors import CORS
 from dotenv import load_dotenv
 import requests as http_requests
 
@@ -43,7 +44,15 @@ logging.basicConfig(
 log = logging.getLogger("cxone-bot")
 
 app = Flask(__name__)
+CORS(app, origins=[
+    "https://viktoriagoja.github.io",
+    "http://localhost:3000",
+])
 log.info(f"Using engine: {_engine}")
+
+# Register assignments blueprint
+from assignments import assignments_bp
+app.register_blueprint(assignments_bp)
 
 
 # ── Auth helper ──────────────────────────────────────────────────

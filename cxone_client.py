@@ -92,6 +92,48 @@ class CXoneClient:
         resp.raise_for_status()
         return resp.json()
 
+    # ── Completed contacts ────────────────────────────────────────
+    def get_completed_contacts(self, start_date: str, end_date: str) -> list:
+        """
+        Fetch completed contacts for a date range.
+        start_date / end_date format: YYYY-MM-DD
+        Handles pagination via _links.next.
+        Returns list of contact dicts.
+        """
+        all_contacts = []
+        url = (
+            f"{self.base_url}/incontactapi/services/v30.0/"
+            f"contacts/completed?startDate={start_date}&endDate={end_date}&top=1000"
+        )
+        while url:
+            resp = requests.get(url, headers=self._headers(), timeout=30)
+            resp.raise_for_status()
+            data = resp.json()
+            contacts = data.get("completedContacts", [])
+            all_contacts.extend(contacts)
+            # Follow pagination
+            next_link = data.get("_links", {}).get("next", None)
+            url = next_link if next_link else None
+        return all_contacts
+
+    # ── Agent roster ─────────────────────────────────────────────
+    def get_agents(self) -> list:
+        """
+        Fetch all agents from CXone.
+        Returns list of agent dicts with agentId, firstName, lastName, emailAddress, etc.
+        """
+        all_agents = []
+        url = f"{self.base_url}/incontactapi/services/v30.0/agents"
+        while url:
+            resp = requests.get(url, headers=self._headers(), timeout=30)
+            resp.raise_for_status()
+            data = resp.json()
+            agents = data.get("agents", [])
+            all_agents.extend(agents)
+            next_link = data.get("_links", {}).get("next", None)
+            url = next_link if next_link else None
+        return all_agents
+
     # ── Health check ─────────────────────────────────────────────
     def ping(self) -> bool:
         """Return True if we can authenticate successfully."""
