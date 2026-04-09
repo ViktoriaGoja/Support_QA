@@ -16,6 +16,39 @@ log = logging.getLogger("cxone-bot")
 
 assignments_bp = Blueprint("assignments", __name__, url_prefix="/api/assignments")
 
+
+@assignments_bp.route("/debug-contacts", methods=["GET"])
+def debug_contacts():
+    """Return a sample of raw CXone contacts to inspect field names."""
+    import hmac, os
+    expected_key = os.getenv("BOT_API_KEY", "")
+    if expected_key:
+        provided = request.headers.get("X-API-Key", "") or request.args.get("api_key", "")
+        if not hmac.compare_digest(expected_key, provided):
+            return jsonify({"error": "Unauthorized"}), 401
+    try:
+        client = get_client()
+        end = datetime.utcnow()
+        start = end - timedelta(days=7)
+        contacts = client.get_completed_contacts(
+            start.strftime("%Y-%m-%d"), end.strftime("%Y-%m-%d")
+        )
+        # Return first 3 contacts with only relevant fields
+        sample = []
+        for c in contacts[:3]:
+            sample.append({
+                k: c.get(k) for k in [
+                    "contactId", "mediaTypeName", "mediaTypeId", "mediaType",
+                    "channelType", "skillName", "isInbound", "direction",
+                    "agentId", "firstName", "lastName", "startDate", "endDate",
+                    "totalDurationSeconds",
+                ]
+            })
+        return jsonify({"total": len(contacts), "sample": sample})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
 # ── Media type mapping ──────────────────────────────────────────
 
 MEDIA_TYPE_MAP = {
