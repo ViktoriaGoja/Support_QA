@@ -33,18 +33,24 @@ def debug_contacts():
         contacts = client.get_completed_contacts(
             start.strftime("%Y-%m-%d"), end.strftime("%Y-%m-%d")
         )
-        # Return first 3 contacts with only relevant fields
-        sample = []
-        for c in contacts[:3]:
-            sample.append({
-                k: c.get(k) for k in [
-                    "contactId", "mediaTypeName", "mediaTypeId", "mediaType",
-                    "channelType", "skillName", "isInbound", "direction",
-                    "agentId", "firstName", "lastName", "startDate", "endDate",
-                    "totalDurationSeconds",
-                ]
-            })
-        return jsonify({"total": len(contacts), "sample": sample})
+        # Count contacts by mediaTypeName and show samples per type
+        by_type = {}
+        samples_per_type = {}
+        for c in contacts:
+            mtn = c.get("mediaTypeName", "UNKNOWN")
+            by_type[mtn] = by_type.get(mtn, 0) + 1
+            if mtn not in samples_per_type:
+                samples_per_type[mtn] = {
+                    k: c.get(k) for k in [
+                        "contactId", "mediaTypeName", "mediaTypeId",
+                        "skillName", "isInbound", "totalDurationSeconds",
+                    ]
+                }
+        return jsonify({
+            "total": len(contacts),
+            "byMediaType": by_type,
+            "samplePerType": samples_per_type,
+        })
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
