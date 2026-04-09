@@ -58,17 +58,20 @@ def debug_contacts():
 # ── Media type mapping ──────────────────────────────────────────
 
 MEDIA_TYPE_MAP = {
-    "1": "Phone",
+    # Map by mediaTypeId
+    "1": "Email",
     "3": "Chat",
-    "4": "Email",
-    "8": "SMS",
-    # Also handle string names from CXone
+    "4": "Phone",
+    "6": "SMS",
+    # Map by mediaTypeName (lowercased)
+    "call": "Phone",
     "phone call": "Phone",
     "phone": "Phone",
     "chat": "Chat",
     "email": "Email",
     "sms": "SMS",
-    "work item": None,  # Skip
+    "workitem": "SMS",       # WorkItems with SMS skills are SMS
+    "work item": "SMS",
 }
 
 
@@ -255,8 +258,8 @@ def generate_assignments():
             continue
         duration = _parse_duration(c)
         # Filter: inbound, 2-30 minutes
-        is_inbound = c.get("isInbound", True)  # Default to True if not specified
-        if not is_inbound:
+        is_inbound = c.get("isInbound")
+        if is_inbound is False:  # Only skip if explicitly False; None means unknown
             continue
         if duration < 120 or duration > 1800:
             continue
