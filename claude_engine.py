@@ -118,11 +118,53 @@ def find_answer(message: str) -> dict:
         }
 
 
+# ── State-aware context ──────────────────────────────────────────
+_STATE_CONTEXT = {
+    "CT": (
+        "STATE CONTEXT: This customer emailed our CONNECTICUT office "
+        "(help@thenextstreet.com).\n"
+        "- Use ONLY information from knowledge-base sections prefixed 'CT:' "
+        "when answering about products, services, prices, locations, bundles, "
+        "permits, licenses, or state regulations.\n"
+        "- For state regulation references, use CONNECTICUT DMV (ct.gov/dmv) — "
+        "NEVER reference the Massachusetts RMV.\n"
+        "- Do NOT pull details from 'MA:' sections — they do not apply to this "
+        "customer.\n"
+        "- Shared sections (refund policy, service expiration, scheduling, "
+        "safety promise, FAQ) apply to both states.\n"
+    ),
+    "MA": (
+        "STATE CONTEXT: This customer emailed our MASSACHUSETTS office "
+        "(ma_help@thenextstreet.com).\n"
+        "- Use ONLY information from knowledge-base sections prefixed 'MA:' "
+        "when answering about products, services, prices, locations, bundles, "
+        "permits, licenses, or state regulations.\n"
+        "- For state regulation references, use MASSACHUSETTS RMV (mass.gov/rmv) — "
+        "NEVER reference the Connecticut DMV.\n"
+        "- Do NOT pull details from 'CT:' sections — they do not apply to this "
+        "customer.\n"
+        "- Shared sections (refund policy, service expiration, scheduling, "
+        "safety promise, FAQ) apply to both states.\n"
+    ),
+}
+
+
+def _normalize_state(state: str) -> str:
+    """Normalize state value to 'CT' or 'MA'. Defaults to 'CT'."""
+    s = (state or "").strip().upper()
+    if s in ("MA", "MASSACHUSETTS"):
+        return "MA"
+    return "CT"  # Default
+
+
 # ── Email system prompt ──────────────────────────────────────────
-def _build_email_system_prompt(knowledge: str) -> str:
+def _build_email_system_prompt(knowledge: str, state: str = "CT") -> str:
     company = os.getenv("COMPANY_NAME", "our company")
     escalate_phrase = os.getenv("ESCALATION_PHRASE", "[ESCALATE]")
+    state_block = _STATE_CONTEXT.get(state, _STATE_CONTEXT["CT"])
     return f"""You are a professional customer support agent for {company} responding to emails.
+
+{state_block}
 
 Your job is to write helpful, polite email replies using ONLY the knowledge base below.
 
@@ -194,14 +236,23 @@ KNOWLEDGE BASE:
 
 
 # ── Email answer function ────────────────────────────────────────
-def find_email_answer(sender: str, subject: str, body: str) -> dict:
+def find_email_answer(sender: str, subject: str, body: str, state: str = "CT") -> dict:
     """
     Generate an email reply using Claude.
 
-    Returns the same structure as find_answer().
+    Args:
+        sender: email address of the customer
+        subject: email subject line
+        body: email body text
+        state: "CT" or "MA" — which state office the email was sent to.
+               Controls which parts of the knowledge base Claude is allowed
+               to draw from and which state regulator it references.
+
+    Returns the same structure as find_answer(), plus a "state" field.
     """
+    state = _normalize_state(state)
     knowledge = _load_knowledge()
-    system_prompt = _build_email_system_prompt(knowledge)
+    system_prompt = _build_email_system_prompt(knowledge, state=state)
     escalate_phrase = os.getenv("ESCALATION_PHRASE", "[ESCALATE]")
     fallback = os.getenv(
         "FALLBACK_MESSAGE",
@@ -248,6 +299,7 @@ def find_email_answer(sender: str, subject: str, body: str) -> dict:
                 "source": "claude-email-spam",
                 "spam": True,
                 "reason": reason or "Detected as spam",
+                "state": state,
             }
 
         if escalate_phrase in raw_answer:
@@ -259,6 +311,7 @@ def find_email_answer(sender: str, subject: str, body: str) -> dict:
                 "source": "claude-email",
                 "spam": False,
                 "reason": reason or "Could not answer from knowledge base",
+                "state": state,
             }
 
         return {
@@ -269,6 +322,7 @@ def find_email_answer(sender: str, subject: str, body: str) -> dict:
             "source": "claude-email",
             "spam": False,
             "reason": reason or "Answered from knowledge base",
+            "state": state,
         }
 
     except Exception as exc:
@@ -281,4 +335,5 @@ def find_email_answer(sender: str, subject: str, body: str) -> dict:
             "source": "claude-email-error",
             "spam": False,
             "reason": f"API error: {exc}",
+            "state": state,
         }

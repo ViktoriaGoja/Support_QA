@@ -142,7 +142,7 @@ EMAIL_LOG_DIR = Path(__file__).parent / "email_logs"
 EMAIL_LOG_DIR.mkdir(exist_ok=True)
 
 
-def _save_email_log(contact_id, sender, subject, body, reply, escalated, spam, reason=""):
+def _save_email_log(contact_id, sender, subject, body, reply, escalated, spam, reason="", state="CT"):
     """Save full email interaction to a log file for record-keeping."""
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     date_str = datetime.now().strftime("%Y-%m-%d")
@@ -157,7 +157,7 @@ def _save_email_log(contact_id, sender, subject, body, reply, escalated, spam, r
 
     entry = (
         f"\n{'='*70}\n"
-        f"[{timestamp}] Contact ID: {contact_id}\n"
+        f"[{timestamp}] Contact ID: {contact_id}  State: {state}\n"
         f"Status: {status}\n"
         f"{'='*70}\n"
         f"FROM: {sender}\n"
@@ -177,10 +177,10 @@ def _save_email_log(contact_id, sender, subject, body, reply, escalated, spam, r
         log.error(f"[EMAIL {contact_id}] Failed to save transcript: {exc}")
 
     # Log to Google Sheets (non-blocking)
-    _log_to_google_sheets(contact_id, sender, subject, body, reply, status, reason)
+    _log_to_google_sheets(contact_id, sender, subject, body, reply, status, reason, state)
 
 
-def _log_to_google_sheets(contact_id, sender, subject, body, reply, status, reason=""):
+def _log_to_google_sheets(contact_id, sender, subject, body, reply, status, reason="", state="CT"):
     """Send transcript to Google Sheets via Apps Script webhook (async)."""
     sheets_url = os.getenv("GOOGLE_SHEETS_WEBHOOK", "")
     if not sheets_url:
@@ -197,6 +197,7 @@ def _log_to_google_sheets(contact_id, sender, subject, body, reply, status, reas
                 "reply": reply if reply else "(none — escalated or spam)",
                 "status": status,
                 "reason": reason,
+                "state": state,
             }
             resp = http_requests.post(sheets_url, json=payload, timeout=10)
             log.info(f"[EMAIL {contact_id}] Google Sheets log: {resp.status_code}")
@@ -246,26 +247,39 @@ def handle_email():
     subject = data.get("subject", "")
     body = data.get("body", "").strip()
 
-    log.info(f"[EMAIL {contact_id}] From: {sender}  Subject: {subject}")
+    # State: "CT" or "MA". Falls back to detection by recipient address,
+    # then defaults to "CT" if nothing else matches.
+    state_raw = (data.get("state", "") or "").strip().upper()
+    if state_raw not in ("CT", "MA"):
+        to_addr = (data.get("to", "") or "").lower()
+        if "ma_help" in to_addr or "massachusetts" in to_addr:
+            state_raw = "MA"
+        else:
+            state_raw = "CT"
+    state = state_raw
+
+    log.info(f"[EMAIL {contact_id}] State: {state}  From: {sender}  Subject: {subject}")
 
     if not body:
-        _save_email_log(contact_id, sender, subject, "(empty body)", "", True, False, "Empty email body — escalated to agent")
+        _save_email_log(contact_id, sender, subject, "(empty body)", "", True, False, "Empty email body — escalated to agent", state=state)
         return jsonify({
             "reply": "",
             "escalate": True,
             "confidence": 0,
             "subject": f"Re: {subject}",
+            "state": state,
         })
 
     result = find_email_answer(
         sender=sender,
         subject=subject,
         body=body,
+        state=state,
     )
     is_spam = result.get("spam", False)
     escalated = not result["matched"]
     log.info(
-        f"[EMAIL {contact_id}] → matched={result['matched']}  "
+        f"[EMAIL {contact_id}] → state={state}  matched={result['matched']}  "
         f"confidence={result['confidence']}  spam={is_spam}"
     )
 
@@ -279,6 +293,7 @@ def handle_email():
         escalated=escalated,
         spam=is_spam,
         reason=result.get("reason", ""),
+        state=state,
     )
 
     return jsonify({
@@ -287,6 +302,7 @@ def handle_email():
         "confidence": result["confidence"],
         "subject": f"Re: {subject}",
         "spam": is_spam,
+        "state": state,
     })
 
 

@@ -1,0 +1,44 @@
+// ═══════════════════════════════════════════════════════════════
+// CT EMAIL BOT — Studio Snippet (updated with explicit state)
+// ═══════════════════════════════════════════════════════════════
+// Paste this into the SNIPPET action of your existing CT Studio script.
+// Adds state="CT" so the bot uses CT-only knowledge base content.
+// ═══════════════════════════════════════════════════════════════
+
+// ── Block unwanted email senders ──
+ASSIGN blockEmail = "false"
+ASSIGN emailFromLower = "{emailFrom.lower()}"
+ASSIGN isSpam = emailFromLower.contains('autos1000.com')
+IF isSpam = 1
+{
+   ASSIGN blockEmail = "true"
+}
+
+IF blockEmail = "true"
+{
+   ASSIGN botSpam = "true"
+   ASSIGN botReply = ""
+   ASSIGN botEscalate = "false"
+}
+ELSE
+{
+   ASSIGN proxy = GetRESTProxy()
+   ASSIGN proxy.ContentType = "application/json"
+   ASSIGN proxy.ProxyTimeoutSeconds = 90
+   ASSIGN botUrl = "https://cxone-faq-bot-1.onrender.com/api/email?api_key=tns-bot-secret-2024"
+
+   DYNAMIC requestBody
+   ASSIGN requestBody.contactId = "{ContactId}"
+   ASSIGN requestBody.from = "{emailFrom}"
+   ASSIGN requestBody.subject = "{emailSubject}"
+   ASSIGN requestBody.body = "{emailBody}"
+   ASSIGN requestBody.state = "CT"
+   ASSIGN payload = "{requestBody.asJSON()}"
+
+   DYNAMIC result
+   ASSIGN result = proxy.MakeRestRequest(botUrl, payload, 0, "POST")
+
+   ASSIGN botReply = "{result.reply}"
+   ASSIGN botEscalate = "{result.escalate}"
+   ASSIGN botSpam = "{result.spam}"
+}

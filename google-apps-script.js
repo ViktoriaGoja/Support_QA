@@ -13,7 +13,7 @@
  *   Who has access: Anyone
  *
  * EXPECTED SHEET COLUMNS (row 1):
- *   Timestamp | ContactId | From | Subject | Body | Reply | Status | Reason
+ *   Timestamp | ContactId | From | Subject | Body | Reply | Status | Reason | State
  */
 
 // ─── Append a new row from the bot (POST) ───────────────────
@@ -34,7 +34,8 @@ function doPost(e) {
     (data.body || '').substring(0, 5000),
     (data.reply || '').substring(0, 5000),
     data.status || '',
-    data.reason || ''
+    data.reason || '',
+    data.state || 'CT'
   ]);
   return ContentService
     .createTextOutput(JSON.stringify({ok: true}))
@@ -62,7 +63,8 @@ function doGet(e) {
       body:      String(row[4] || ''),
       reply:     String(row[5] || ''),
       status:    String(row[6] || ''),
-      reason:    String(row[7] || '')
+      reason:    String(row[7] || ''),
+      state:     String(row[8] || 'CT')
     });
   }
 

@@ -395,6 +395,10 @@
     <button class="filter-chip" data-filter="replied">Auto-Replied</button>
     <button class="filter-chip" data-filter="escalated">Escalated</button>
     <button class="filter-chip" data-filter="spam">Spam</button>
+    <span style="width:1px; height:24px; background:#e5e7eb;"></span>
+    <button class="filter-chip active" data-state="all">All States</button>
+    <button class="filter-chip" data-state="CT">CT</button>
+    <button class="filter-chip" data-state="MA">MA</button>
   </div>
 
   <!-- Table -->
@@ -431,6 +435,7 @@
 <script>
   let allLogs = [];
   let currentFilter = 'all';
+  let currentState = 'all';
   let currentSearch = '';
 
   async function loadLogs() {
@@ -489,6 +494,9 @@
       if (currentFilter === 'escalated' && !status.includes('ESCALATED')) return false;
       if (currentFilter === 'spam' && !status.includes('SPAM')) return false;
 
+      const state = (log.state || 'CT').toUpperCase();
+      if (currentState !== 'all' && state !== currentState) return false;
+
       if (currentSearch) {
         const q = currentSearch.toLowerCase();
         const hay = [log.from, log.subject, log.body, log.reply, log.reason]
@@ -497,6 +505,12 @@
       }
       return true;
     });
+  }
+
+  function stateBadge(state) {
+    const s = (state || 'CT').toUpperCase();
+    if (s === 'MA') return '<span class="badge" style="background:#dbeafe;color:#1e40af;">MA</span>';
+    return '<span class="badge" style="background:#fed7aa;color:#9a3412;">CT</span>';
   }
 
   function escapeHtml(str) {
@@ -529,12 +543,13 @@
     }
 
     let html = '<table><thead><tr>' +
-      '<th>When</th><th>From</th><th>Subject</th><th>Status</th>' +
+      '<th>When</th><th>State</th><th>From</th><th>Subject</th><th>Status</th>' +
       '</tr></thead><tbody>';
 
     rows.forEach((log, idx) => {
       html += '<tr data-idx="' + idx + '">' +
         '<td class="col-date">' + formatDate(log.timestamp) + '</td>' +
+        '<td>' + stateBadge(log.state) + '</td>' +
         '<td class="col-from"><div class="truncate">' + escapeHtml(log.from) + '</div></td>' +
         '<td><div class="truncate">' + escapeHtml(log.subject) + '</div></td>' +
         '<td>' + badgeFor(log.status) + '</td>' +
@@ -556,8 +571,8 @@
     document.getElementById('modalTitle').textContent = log.subject || '(no subject)';
     const body = document.getElementById('modalBody');
     body.innerHTML =
-      '<div class="modal-row"><div class="modal-label">Status</div>' +
-      '<div>' + badgeFor(log.status) + '</div></div>' +
+      '<div class="modal-row"><div class="modal-label">Status · State</div>' +
+      '<div>' + badgeFor(log.status) + ' ' + stateBadge(log.state) + '</div></div>' +
       '<div class="modal-row"><div class="modal-label">Timestamp</div>' +
       '<div class="modal-value">' + escapeHtml(log.timestamp) + '</div></div>' +
       '<div class="modal-row"><div class="modal-label">Contact ID</div>' +
@@ -587,11 +602,22 @@
     renderTable();
   });
 
-  document.querySelectorAll('.filter-chip').forEach(chip => {
+  // Status filter chips (only one active among status chips)
+  document.querySelectorAll('.filter-chip[data-filter]').forEach(chip => {
     chip.addEventListener('click', () => {
-      document.querySelectorAll('.filter-chip').forEach(c => c.classList.remove('active'));
+      document.querySelectorAll('.filter-chip[data-filter]').forEach(c => c.classList.remove('active'));
       chip.classList.add('active');
       currentFilter = chip.dataset.filter;
+      renderTable();
+    });
+  });
+
+  // State filter chips (only one active among state chips)
+  document.querySelectorAll('.filter-chip[data-state]').forEach(chip => {
+    chip.addEventListener('click', () => {
+      document.querySelectorAll('.filter-chip[data-state]').forEach(c => c.classList.remove('active'));
+      chip.classList.add('active');
+      currentState = chip.dataset.state;
       renderTable();
     });
   });
