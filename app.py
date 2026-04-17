@@ -14,10 +14,10 @@ Endpoints:
   GET  /health       – health check
 """
 
-import hashlib, hmac, json, logging, os, threading
+import hashlib, hmac, json, logging, os, secrets, threading
 from datetime import datetime
 from pathlib import Path
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, render_template, make_response, redirect
 from flask_cors import CORS
 from dotenv import load_dotenv
 import requests as http_requests
@@ -314,6 +314,97 @@ def cxone_webhook():
         "replies": [{"type": "text", "content": result["answer"]}],
         "escalate": True,
     })
+
+
+# ─────────────────────────────────────────────────────────────────
+#  DASHBOARD — internal monitoring UI for Vicky
+# ─────────────────────────────────────────────────────────────────
+DASHBOARD_COOKIE = "tns_dash_auth"
+
+
+def _dashboard_token() -> str:
+    """Derive a stable cookie value from the dashboard password."""
+    pw = os.getenv("DASHBOARD_PASSWORD", "")
+    if not pw:
+        return ""
+    return hashlib.sha256(pw.encode("utf-8")).hexdigest()
+
+
+def _dashboard_authed() -> bool:
+    """Check if the current request has a valid dashboard auth cookie."""
+    expected = _dashboard_token()
+    if not expected:
+        return False
+    provided = request.cookies.get(DASHBOARD_COOKIE, "")
+    return hmac.compare_digest(expected, provided)
+
+
+@app.route("/dashboard", methods=["GET", "POST"])
+def dashboard():
+    """Internal dashboard — requires DASHBOARD_PASSWORD env var."""
+    pw_env = os.getenv("DASHBOARD_PASSWORD", "")
+    if not pw_env:
+        return (
+            "<h2>Dashboard disabled</h2>"
+            "<p>Set the <code>DASHBOARD_PASSWORD</code> environment variable "
+            "on Render to enable the dashboard.</p>",
+            503,
+        )
+
+    # Handle login POST
+    if request.method == "POST":
+        submitted = request.form.get("password", "")
+        if hmac.compare_digest(pw_env, submitted):
+            resp = make_response(redirect("/dashboard"))
+            resp.set_cookie(
+                DASHBOARD_COOKIE,
+                _dashboard_token(),
+                max_age=60 * 60 * 24 * 7,  # 7 days
+                httponly=True,
+                samesite="Lax",
+                secure=request.is_secure,
+            )
+            return resp
+        return render_template("dashboard_login.html", error="Incorrect password")
+
+    # Handle GET — show dashboard or login
+    if _dashboard_authed():
+        return render_template("dashboard.html")
+    return render_template("dashboard_login.html", error=None)
+
+
+@app.route("/dashboard/logout", methods=["GET"])
+def dashboard_logout():
+    resp = make_response(redirect("/dashboard"))
+    resp.delete_cookie(DASHBOARD_COOKIE)
+    return resp
+
+
+@app.route("/api/logs", methods=["GET"])
+def api_logs():
+    """Proxy to Google Sheets Apps Script to fetch email logs as JSON.
+    Only accessible to authenticated dashboard users."""
+    if not _dashboard_authed():
+        return jsonify({"error": "unauthorized"}), 401
+
+    sheets_url = os.getenv("GOOGLE_SHEETS_WEBHOOK", "")
+    if not sheets_url:
+        return jsonify({"logs": [], "error": "GOOGLE_SHEETS_WEBHOOK not configured"})
+
+    try:
+        resp = http_requests.get(sheets_url, timeout=30)
+        resp.raise_for_status()
+        data = resp.json()
+        # Expect shape: {"logs": [...]}
+        if isinstance(data, dict) and "logs" in data:
+            return jsonify(data)
+        # Tolerate bare list
+        if isinstance(data, list):
+            return jsonify({"logs": data})
+        return jsonify({"logs": [], "error": "Unexpected response shape"})
+    except Exception as exc:
+        log.error(f"[DASHBOARD] Failed to fetch logs: {exc}")
+        return jsonify({"logs": [], "error": str(exc)}), 502
 
 
 # ── Health check ─────────────────────────────────────────────────

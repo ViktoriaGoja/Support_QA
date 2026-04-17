@@ -48,23 +48,44 @@ ACTION 3: SNIPPET — "Call Claude Bot API"
 
   Paste this code:
 
-    ASSIGN proxy = GetRESTProxy()
-    ASSIGN proxy.ContentType = "application/json"
-    ASSIGN proxy.ProxyTimeoutSeconds = 90
-    ASSIGN botUrl = "https://YOUR-SERVER.com/api/email?api_key=YOUR-BOT-API-KEY"
+    // ── Block unwanted email senders ──
+    // NOTE: emailFrom may contain display name format like:
+    //   "Support @ Autos1000" <support@autos1000.com>
+    // Use .ToLower() + .Contains() to match regardless of format.
+    ASSIGN blockEmail = "false"
+    ASSIGN emailFromLower = "{emailFrom.ToLower()}"
+    IF emailFromLower.Contains("autos1000.com")
+    {
+       ASSIGN blockEmail = "true"
+    }
 
-    DYNAMIC requestBody
-    ASSIGN requestBody.contactId = "{ContactId}"
-    ASSIGN requestBody.from = "{emailFrom}"
-    ASSIGN requestBody.subject = "{emailSubject}"
-    ASSIGN requestBody.body = "{emailBody}"
-    ASSIGN payload = "{requestBody.asJSON()}"
+    IF blockEmail = "true"
+    {
+       ASSIGN botSpam = "true"
+       ASSIGN botReply = ""
+       ASSIGN botEscalate = "false"
+    }
+    ELSE
+    {
+       ASSIGN proxy = GetRESTProxy()
+       ASSIGN proxy.ContentType = "application/json"
+       ASSIGN proxy.ProxyTimeoutSeconds = 90
+       ASSIGN botUrl = "https://YOUR-SERVER.com/api/email?api_key=YOUR-BOT-API-KEY"
 
-    DYNAMIC result
-    ASSIGN result = proxy.MakeRestRequest(botUrl, payload, 0, "POST")
+       DYNAMIC requestBody
+       ASSIGN requestBody.contactId = "{ContactId}"
+       ASSIGN requestBody.from = "{emailFrom}"
+       ASSIGN requestBody.subject = "{emailSubject}"
+       ASSIGN requestBody.body = "{emailBody}"
+       ASSIGN payload = "{requestBody.asJSON()}"
 
-    ASSIGN botReply = "{result.reply}"
-    ASSIGN botEscalate = "{result.escalate}"
+       DYNAMIC result
+       ASSIGN result = proxy.MakeRestRequest(botUrl, payload, 0, "POST")
+
+       ASSIGN botReply = "{result.reply}"
+       ASSIGN botEscalate = "{result.escalate}"
+       ASSIGN botSpam = "{result.spam}"
+    }
 
   IMPORTANT NOTES on MakeRestRequest:
     - proxy.ContentType MUST be "application/json" (default is form-urlencoded)
@@ -109,7 +130,7 @@ ACTION 7: REPLY — "Send Email Reply"
 
 --------------------------------------------------------------------
 
-LESSONS LEARNED (April 6, 2026):
+LESSONS LEARNED (April 6–10, 2026):
   1. {from}, {subject}, {body} do NOT work in email scripts.
      You MUST use GETEMAIL action first to extract email fields
      into named variables (emailFrom, emailSubject, emailBody).
@@ -122,4 +143,11 @@ LESSONS LEARNED (April 6, 2026):
      + MakeRestRequest() in a Snippet instead.
   6. API key goes in the URL query param (?api_key=xxx) because
      custom headers with hyphens break Studio script saving.
+  7. emailFrom may contain display name format, e.g.:
+       "Support @ Autos1000" <support@autos1000.com>
+     SWITCH/CASE exact match will NOT catch this. Use
+     .ToLower() + .Contains() inside a Snippet instead.
+  8. The IF action's CONTAINS operator does NOT work in Studio
+     (gives "Unrecognized operator: C"). Use .Contains() inside
+     a SNIPPET action instead — it supports .NET string methods.
 ====================================================================

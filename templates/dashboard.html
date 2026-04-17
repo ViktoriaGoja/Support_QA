@@ -1,0 +1,608 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Email Bot Dashboard — The Next Street</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --tns-orange: #F58A21;
+    --tns-green:  #73BF45;
+    --tns-sky:    #29A3BD;
+    --tns-dark:   #1f2937;
+    --tns-gray:   #6b7280;
+    --tns-bg:     #f9fafb;
+    --tns-card:   #ffffff;
+    --tns-border: #e5e7eb;
+    --status-green: #dcfce7;
+    --status-green-text: #166534;
+    --status-yellow: #fef3c7;
+    --status-yellow-text: #92400e;
+    --status-red: #fee2e2;
+    --status-red-text: #991b1b;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    background: var(--tns-bg);
+    color: var(--tns-dark);
+    line-height: 1.5;
+    min-height: 100vh;
+  }
+
+  /* Header */
+  .header {
+    background: linear-gradient(135deg, var(--tns-orange) 0%, #ff9f3d 100%);
+    color: white;
+    padding: 2rem 2rem 1.5rem;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+  }
+  .header-content {
+    max-width: 1400px;
+    margin: 0 auto;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 1rem;
+  }
+  .header h1 {
+    font-size: 1.75rem;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+  }
+  .header .subtitle {
+    font-size: 0.95rem;
+    opacity: 0.9;
+    margin-top: 0.25rem;
+  }
+  .header-actions {
+    display: flex;
+    gap: 0.75rem;
+    align-items: center;
+  }
+  .btn {
+    background: white;
+    color: var(--tns-orange);
+    border: none;
+    padding: 0.6rem 1.2rem;
+    border-radius: 8px;
+    font-family: inherit;
+    font-size: 0.9rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .btn:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(0,0,0,0.15); }
+  .btn-outline {
+    background: transparent;
+    color: white;
+    border: 2px solid white;
+  }
+  .btn-outline:hover { background: white; color: var(--tns-orange); }
+
+  /* Container */
+  .container {
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 2rem;
+  }
+
+  /* Stats */
+  .stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 1rem;
+    margin-bottom: 2rem;
+  }
+  .stat-card {
+    background: var(--tns-card);
+    border-radius: 12px;
+    padding: 1.25rem 1.5rem;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+    border-left: 4px solid var(--tns-orange);
+    transition: transform 0.15s;
+  }
+  .stat-card:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,0.08); }
+  .stat-card.green { border-left-color: var(--tns-green); }
+  .stat-card.yellow { border-left-color: #f59e0b; }
+  .stat-card.red { border-left-color: #ef4444; }
+  .stat-card.sky { border-left-color: var(--tns-sky); }
+  .stat-label {
+    font-size: 0.8rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--tns-gray);
+    margin-bottom: 0.5rem;
+  }
+  .stat-value {
+    font-size: 2rem;
+    font-weight: 800;
+    color: var(--tns-dark);
+    line-height: 1;
+  }
+  .stat-sub {
+    font-size: 0.8rem;
+    color: var(--tns-gray);
+    margin-top: 0.35rem;
+  }
+
+  /* Filters */
+  .filters {
+    background: var(--tns-card);
+    border-radius: 12px;
+    padding: 1rem 1.25rem;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+    margin-bottom: 1rem;
+    display: flex;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+    align-items: center;
+  }
+  .filters input[type="text"] {
+    flex: 1;
+    min-width: 200px;
+    padding: 0.55rem 0.9rem;
+    border: 1px solid var(--tns-border);
+    border-radius: 8px;
+    font-family: inherit;
+    font-size: 0.9rem;
+    outline: none;
+    transition: border-color 0.15s;
+  }
+  .filters input[type="text"]:focus { border-color: var(--tns-orange); }
+  .filter-chip {
+    padding: 0.5rem 0.95rem;
+    border: 1.5px solid var(--tns-border);
+    background: white;
+    border-radius: 20px;
+    font-family: inherit;
+    font-size: 0.85rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.15s;
+    color: var(--tns-gray);
+  }
+  .filter-chip:hover { border-color: var(--tns-orange); color: var(--tns-orange); }
+  .filter-chip.active {
+    background: var(--tns-orange);
+    border-color: var(--tns-orange);
+    color: white;
+  }
+
+  /* Table */
+  .table-wrap {
+    background: var(--tns-card);
+    border-radius: 12px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+    overflow: hidden;
+  }
+  .table-header {
+    padding: 1rem 1.25rem;
+    border-bottom: 1px solid var(--tns-border);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+  .table-title { font-weight: 700; font-size: 1.05rem; }
+  .table-count { color: var(--tns-gray); font-size: 0.85rem; }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.88rem;
+  }
+  thead th {
+    background: #f9fafb;
+    padding: 0.75rem 1rem;
+    text-align: left;
+    font-weight: 600;
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--tns-gray);
+    border-bottom: 1px solid var(--tns-border);
+  }
+  tbody td {
+    padding: 0.85rem 1rem;
+    border-bottom: 1px solid #f3f4f6;
+    vertical-align: top;
+  }
+  tbody tr { cursor: pointer; transition: background 0.1s; }
+  tbody tr:hover { background: #f9fafb; }
+
+  .badge {
+    display: inline-block;
+    padding: 0.25rem 0.65rem;
+    border-radius: 12px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    white-space: nowrap;
+  }
+  .badge-green { background: var(--status-green); color: var(--status-green-text); }
+  .badge-yellow { background: var(--status-yellow); color: var(--status-yellow-text); }
+  .badge-red { background: var(--status-red); color: var(--status-red-text); }
+
+  .truncate {
+    max-width: 300px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .col-date { white-space: nowrap; color: var(--tns-gray); font-size: 0.82rem; }
+  .col-from { font-weight: 500; }
+
+  /* Empty / loading states */
+  .state {
+    padding: 4rem 2rem;
+    text-align: center;
+    color: var(--tns-gray);
+  }
+  .state-icon {
+    font-size: 3rem;
+    margin-bottom: 1rem;
+    opacity: 0.5;
+  }
+  .spinner {
+    display: inline-block;
+    width: 36px;
+    height: 36px;
+    border: 3px solid var(--tns-border);
+    border-top-color: var(--tns-orange);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* Modal */
+  .modal-overlay {
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0,0,0,0.5);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 1rem;
+    z-index: 100;
+  }
+  .modal-overlay.open { display: flex; }
+  .modal {
+    background: white;
+    border-radius: 12px;
+    max-width: 800px;
+    width: 100%;
+    max-height: 90vh;
+    overflow-y: auto;
+    box-shadow: 0 20px 50px rgba(0,0,0,0.25);
+  }
+  .modal-header {
+    padding: 1.25rem 1.5rem;
+    border-bottom: 1px solid var(--tns-border);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    position: sticky;
+    top: 0;
+    background: white;
+    border-radius: 12px 12px 0 0;
+  }
+  .modal-title { font-size: 1.1rem; font-weight: 700; }
+  .modal-close {
+    background: none;
+    border: none;
+    font-size: 1.5rem;
+    cursor: pointer;
+    color: var(--tns-gray);
+    padding: 0 0.5rem;
+  }
+  .modal-body { padding: 1.5rem; }
+  .modal-row { margin-bottom: 1.25rem; }
+  .modal-label {
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    color: var(--tns-gray);
+    letter-spacing: 0.05em;
+    margin-bottom: 0.35rem;
+  }
+  .modal-value {
+    padding: 0.75rem 1rem;
+    background: #f9fafb;
+    border-radius: 8px;
+    border: 1px solid var(--tns-border);
+    white-space: pre-wrap;
+    word-break: break-word;
+    font-size: 0.9rem;
+    max-height: 300px;
+    overflow-y: auto;
+  }
+
+  /* Footer */
+  .footer {
+    text-align: center;
+    padding: 2rem;
+    color: var(--tns-gray);
+    font-size: 0.85rem;
+  }
+
+  @media (max-width: 640px) {
+    .header { padding: 1.5rem 1rem 1rem; }
+    .header h1 { font-size: 1.35rem; }
+    .container { padding: 1rem; }
+    .stat-value { font-size: 1.5rem; }
+    table { font-size: 0.8rem; }
+    .truncate { max-width: 150px; }
+    thead th:nth-child(3), tbody td:nth-child(3) { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<header class="header">
+  <div class="header-content">
+    <div>
+      <h1>Email Bot Dashboard</h1>
+      <div class="subtitle">The Next Street · CXone AI Email Assistant</div>
+    </div>
+    <div class="header-actions">
+      <button class="btn-outline btn" id="refreshBtn">Refresh</button>
+      <a class="btn" href="/health" target="_blank">System Status</a>
+    </div>
+  </div>
+</header>
+
+<div class="container">
+
+  <!-- Stats -->
+  <div class="stats" id="stats">
+    <div class="stat-card">
+      <div class="stat-label">Total Emails</div>
+      <div class="stat-value" id="statTotal">—</div>
+      <div class="stat-sub">All time</div>
+    </div>
+    <div class="stat-card green">
+      <div class="stat-label">Auto-Replied</div>
+      <div class="stat-value" id="statReplied">—</div>
+      <div class="stat-sub">Handled by bot</div>
+    </div>
+    <div class="stat-card yellow">
+      <div class="stat-label">Escalated</div>
+      <div class="stat-value" id="statEscalated">—</div>
+      <div class="stat-sub">Routed to human</div>
+    </div>
+    <div class="stat-card red">
+      <div class="stat-label">Spam Blocked</div>
+      <div class="stat-value" id="statSpam">—</div>
+      <div class="stat-sub">Dropped automatically</div>
+    </div>
+    <div class="stat-card sky">
+      <div class="stat-label">Today</div>
+      <div class="stat-value" id="statToday">—</div>
+      <div class="stat-sub">Received in last 24h</div>
+    </div>
+  </div>
+
+  <!-- Filters -->
+  <div class="filters">
+    <input type="text" id="searchInput" placeholder="Search by sender, subject, or content...">
+    <button class="filter-chip active" data-filter="all">All</button>
+    <button class="filter-chip" data-filter="replied">Auto-Replied</button>
+    <button class="filter-chip" data-filter="escalated">Escalated</button>
+    <button class="filter-chip" data-filter="spam">Spam</button>
+  </div>
+
+  <!-- Table -->
+  <div class="table-wrap">
+    <div class="table-header">
+      <div class="table-title">Recent Emails</div>
+      <div class="table-count" id="tableCount">Loading...</div>
+    </div>
+    <div id="tableContent">
+      <div class="state">
+        <div class="spinner"></div>
+        <div style="margin-top:1rem;">Loading email logs...</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="footer">
+    Powered by Claude AI · Hosted on Render · Logged to Google Sheets<br>
+    Last refreshed: <span id="lastRefresh">—</span>
+  </div>
+</div>
+
+<!-- Modal -->
+<div class="modal-overlay" id="modal">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title" id="modalTitle">Email Details</div>
+      <button class="modal-close" id="modalClose">&times;</button>
+    </div>
+    <div class="modal-body" id="modalBody"></div>
+  </div>
+</div>
+
+<script>
+  let allLogs = [];
+  let currentFilter = 'all';
+  let currentSearch = '';
+
+  async function loadLogs() {
+    try {
+      document.getElementById('tableContent').innerHTML =
+        '<div class="state"><div class="spinner"></div><div style="margin-top:1rem;">Loading email logs...</div></div>';
+
+      const resp = await fetch('/api/logs');
+      if (!resp.ok) throw new Error('Failed to load logs: ' + resp.status);
+      const data = await resp.json();
+      allLogs = (data.logs || []).reverse();  // newest first
+      updateStats();
+      renderTable();
+      document.getElementById('lastRefresh').textContent = new Date().toLocaleTimeString();
+    } catch (err) {
+      document.getElementById('tableContent').innerHTML =
+        '<div class="state"><div class="state-icon">⚠️</div><div><strong>Could not load logs</strong></div>' +
+        '<div style="margin-top:0.5rem;font-size:0.85rem;">' + err.message + '</div></div>';
+    }
+  }
+
+  function updateStats() {
+    const total = allLogs.length;
+    let replied = 0, escalated = 0, spam = 0, today = 0;
+    const dayAgo = Date.now() - 24*60*60*1000;
+
+    allLogs.forEach(log => {
+      const status = (log.status || '').toUpperCase();
+      if (status.includes('SPAM')) spam++;
+      else if (status.includes('ESCALATED')) escalated++;
+      else if (status.includes('AUTO-REPLIED') || status.includes('REPLIED')) replied++;
+
+      const ts = new Date(log.timestamp);
+      if (!isNaN(ts) && ts.getTime() > dayAgo) today++;
+    });
+
+    document.getElementById('statTotal').textContent = total.toLocaleString();
+    document.getElementById('statReplied').textContent = replied.toLocaleString();
+    document.getElementById('statEscalated').textContent = escalated.toLocaleString();
+    document.getElementById('statSpam').textContent = spam.toLocaleString();
+    document.getElementById('statToday').textContent = today.toLocaleString();
+  }
+
+  function badgeFor(status) {
+    const s = (status || '').toUpperCase();
+    if (s.includes('SPAM')) return '<span class="badge badge-red">Spam</span>';
+    if (s.includes('ESCALATED')) return '<span class="badge badge-yellow">Escalated</span>';
+    if (s.includes('AUTO-REPLIED') || s.includes('REPLIED')) return '<span class="badge badge-green">Auto-Replied</span>';
+    return '<span class="badge">' + (status || 'Unknown') + '</span>';
+  }
+
+  function filterLogs() {
+    return allLogs.filter(log => {
+      const status = (log.status || '').toUpperCase();
+      if (currentFilter === 'replied' && !(status.includes('AUTO-REPLIED') || status.includes('REPLIED'))) return false;
+      if (currentFilter === 'escalated' && !status.includes('ESCALATED')) return false;
+      if (currentFilter === 'spam' && !status.includes('SPAM')) return false;
+
+      if (currentSearch) {
+        const q = currentSearch.toLowerCase();
+        const hay = [log.from, log.subject, log.body, log.reply, log.reason]
+          .map(v => (v || '').toLowerCase()).join(' ');
+        if (!hay.includes(q)) return false;
+      }
+      return true;
+    });
+  }
+
+  function escapeHtml(str) {
+    return (str || '').toString()
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  }
+
+  function formatDate(ts) {
+    if (!ts) return '—';
+    const d = new Date(ts);
+    if (isNaN(d)) return ts;
+    const today = new Date();
+    const sameDay = d.toDateString() === today.toDateString();
+    if (sameDay) return 'Today ' + d.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
+    return d.toLocaleDateString([], {month:'short', day:'numeric'}) + ' ' +
+           d.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
+  }
+
+  function renderTable() {
+    const rows = filterLogs();
+    const tbl = document.getElementById('tableContent');
+    document.getElementById('tableCount').textContent =
+      rows.length + ' of ' + allLogs.length + ' emails';
+
+    if (rows.length === 0) {
+      tbl.innerHTML = '<div class="state"><div class="state-icon">📭</div>' +
+        '<div><strong>No emails match your filters</strong></div></div>';
+      return;
+    }
+
+    let html = '<table><thead><tr>' +
+      '<th>When</th><th>From</th><th>Subject</th><th>Status</th>' +
+      '</tr></thead><tbody>';
+
+    rows.forEach((log, idx) => {
+      html += '<tr data-idx="' + idx + '">' +
+        '<td class="col-date">' + formatDate(log.timestamp) + '</td>' +
+        '<td class="col-from"><div class="truncate">' + escapeHtml(log.from) + '</div></td>' +
+        '<td><div class="truncate">' + escapeHtml(log.subject) + '</div></td>' +
+        '<td>' + badgeFor(log.status) + '</td>' +
+        '</tr>';
+    });
+    html += '</tbody></table>';
+    tbl.innerHTML = html;
+
+    // Row click → open modal
+    tbl.querySelectorAll('tbody tr').forEach(tr => {
+      tr.addEventListener('click', () => {
+        const idx = parseInt(tr.dataset.idx, 10);
+        openModal(rows[idx]);
+      });
+    });
+  }
+
+  function openModal(log) {
+    document.getElementById('modalTitle').textContent = log.subject || '(no subject)';
+    const body = document.getElementById('modalBody');
+    body.innerHTML =
+      '<div class="modal-row"><div class="modal-label">Status</div>' +
+      '<div>' + badgeFor(log.status) + '</div></div>' +
+      '<div class="modal-row"><div class="modal-label">Timestamp</div>' +
+      '<div class="modal-value">' + escapeHtml(log.timestamp) + '</div></div>' +
+      '<div class="modal-row"><div class="modal-label">Contact ID</div>' +
+      '<div class="modal-value">' + escapeHtml(log.contactId) + '</div></div>' +
+      '<div class="modal-row"><div class="modal-label">From</div>' +
+      '<div class="modal-value">' + escapeHtml(log.from) + '</div></div>' +
+      '<div class="modal-row"><div class="modal-label">Subject</div>' +
+      '<div class="modal-value">' + escapeHtml(log.subject) + '</div></div>' +
+      '<div class="modal-row"><div class="modal-label">Customer Email</div>' +
+      '<div class="modal-value">' + escapeHtml(log.body) + '</div></div>' +
+      '<div class="modal-row"><div class="modal-label">Bot Reply</div>' +
+      '<div class="modal-value">' + escapeHtml(log.reply) + '</div></div>' +
+      (log.reason ? '<div class="modal-row"><div class="modal-label">Reason</div>' +
+        '<div class="modal-value">' + escapeHtml(log.reason) + '</div></div>' : '');
+    document.getElementById('modal').classList.add('open');
+  }
+
+  document.getElementById('modalClose').addEventListener('click', () => {
+    document.getElementById('modal').classList.remove('open');
+  });
+  document.getElementById('modal').addEventListener('click', (e) => {
+    if (e.target.id === 'modal') document.getElementById('modal').classList.remove('open');
+  });
+
+  document.getElementById('searchInput').addEventListener('input', (e) => {
+    currentSearch = e.target.value.trim();
+    renderTable();
+  });
+
+  document.querySelectorAll('.filter-chip').forEach(chip => {
+    chip.addEventListener('click', () => {
+      document.querySelectorAll('.filter-chip').forEach(c => c.classList.remove('active'));
+      chip.classList.add('active');
+      currentFilter = chip.dataset.filter;
+      renderTable();
+    });
+  });
+
+  document.getElementById('refreshBtn').addEventListener('click', loadLogs);
+
+  // Auto-refresh every 60s
+  setInterval(loadLogs, 60000);
+
+  // Initial load
+  loadLogs();
+</script>
+</body>
+</html>
