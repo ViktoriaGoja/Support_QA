@@ -82,12 +82,12 @@ def _parse_duration(contact: dict) -> int:
     dur = contact.get("totalDurationSeconds")
     if dur is not None:
         return int(dur)
-    # Fallback: try to parse from startDate / endDate
+    # Fallback: try to parse from contactStartDate / dateContactWarehoused
     try:
-        start = datetime.fromisoformat(contact["startDate"].replace("Z", "+00:00"))
-        end = datetime.fromisoformat(contact["endDate"].replace("Z", "+00:00"))
+        start = datetime.fromisoformat(contact["contactStartDate"].replace("Z", "+00:00"))
+        end = datetime.fromisoformat(contact["dateContactWarehoused"].replace("Z", "+00:00"))
         return int((end - start).total_seconds())
-    except (KeyError, ValueError):
+    except (KeyError, ValueError, TypeError):
         return 0
 
 
@@ -296,7 +296,7 @@ def generate_assignments():
                 {
                     "contactId": str(c.get("contactId", "")),
                     "channel": c["_channel"],
-                    "interactionDate": c.get("startDate", ""),
+                    "interactionDate": c.get("contactStartDate", ""),
                     "duration": c["_duration"],
                     "durationFormatted": _format_duration(c["_duration"]),
                     "skillName": c.get("skillName", ""),
