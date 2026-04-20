@@ -28,10 +28,10 @@ ELSE
    ASSIGN botUrl = "https://cxone-faq-bot-1.onrender.com/api/email?api_key=tns-bot-secret-2024"
 
    DYNAMIC requestBody
-   ASSIGN requestBody.contactId = "{ContactId}"
-   ASSIGN requestBody.from = "{emailFrom}"
-   ASSIGN requestBody.subject = "{emailSubject}"
-   ASSIGN requestBody.body = "{emailBody}"
+   ASSIGN requestBody.contactId = ContactId
+   ASSIGN requestBody.from = emailFrom
+   ASSIGN requestBody.subject = emailSubject
+   ASSIGN requestBody.body = emailBody
    ASSIGN requestBody.state = "CT"
    ASSIGN payload = "{requestBody.asJSON()}"
 

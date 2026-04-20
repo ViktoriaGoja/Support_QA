@@ -241,7 +241,23 @@ def handle_email():
             "error": "Email handling requires ANTHROPIC_API_KEY",
         })
 
-    data = request.get_json(force=True)
+    # Parse JSON defensively — if Studio sends malformed JSON (e.g.
+    # because an email body contains quotes/newlines), log what we got
+    # and escalate to a human rather than returning 400.
+    data = request.get_json(force=True, silent=True) or {}
+    if not data:
+        raw_body = request.get_data(as_text=True)
+        log.warning(f"[EMAIL] Malformed JSON payload (len={len(raw_body)}): {raw_body[:500]!r}")
+        return jsonify({
+            "reply": "",
+            "escalate": True,
+            "confidence": 0,
+            "subject": "",
+            "spam": False,
+            "state": "CT",
+            "error": "Could not parse payload — escalating",
+        })
+
     contact_id = data.get("contactId", "unknown")
     sender = data.get("from", "unknown")
     subject = data.get("subject", "")
