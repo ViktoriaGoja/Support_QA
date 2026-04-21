@@ -15,7 +15,7 @@ Endpoints:
 """
 
 import hashlib, hmac, json, logging, os, secrets, threading
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from flask import Flask, request, jsonify, render_template, make_response, redirect
 from flask_cors import CORS
@@ -144,8 +144,8 @@ EMAIL_LOG_DIR.mkdir(exist_ok=True)
 
 def _save_email_log(contact_id, sender, subject, body, reply, escalated, spam, reason="", state="CT"):
     """Save full email interaction to a log file for record-keeping."""
-    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    date_str = datetime.now().strftime("%Y-%m-%d")
+    timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
+    date_str = datetime.now(timezone.utc).strftime("%Y-%m-%d")
     log_file = EMAIL_LOG_DIR / f"emails_{date_str}.log"
 
     if spam:
@@ -189,7 +189,9 @@ def _log_to_google_sheets(contact_id, sender, subject, body, reply, status, reas
     def _send():
         try:
             payload = {
-                "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                # ISO 8601 UTC with Z suffix — browsers parse this as UTC
+                # and convert to the viewer's local timezone correctly.
+                "timestamp": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
                 "contactId": contact_id,
                 "from": sender,
                 "subject": subject,

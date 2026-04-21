@@ -395,10 +395,24 @@
     <button class="filter-chip" data-filter="replied">Auto-Replied</button>
     <button class="filter-chip" data-filter="escalated">Escalated</button>
     <button class="filter-chip" data-filter="spam">Spam</button>
+    <button class="filter-chip" data-filter="failed">Bot Failed</button>
     <span style="width:1px; height:24px; background:#e5e7eb;"></span>
     <button class="filter-chip active" data-state="all">All States</button>
     <button class="filter-chip" data-state="CT">CT</button>
     <button class="filter-chip" data-state="MA">MA</button>
+  </div>
+
+  <!-- Date range filter -->
+  <div class="filters">
+    <label style="font-size:0.8rem; color:var(--tns-gray); font-weight:600; text-transform:uppercase; letter-spacing:0.05em;">Date:</label>
+    <button class="filter-chip active" data-range="all">All time</button>
+    <button class="filter-chip" data-range="today">Today</button>
+    <button class="filter-chip" data-range="24h">Last 24h</button>
+    <button class="filter-chip" data-range="7d">Last 7 days</button>
+    <button class="filter-chip" data-range="custom">Custom</button>
+    <input type="date" id="dateFrom" style="padding:0.5rem; border:1px solid var(--tns-border); border-radius:8px; font-family:inherit; font-size:0.85rem; display:none;">
+    <span id="dateDash" style="display:none; color:var(--tns-gray);">–</span>
+    <input type="date" id="dateTo" style="padding:0.5rem; border:1px solid var(--tns-border); border-radius:8px; font-family:inherit; font-size:0.85rem; display:none;">
   </div>
 
   <!-- Table -->
@@ -436,7 +450,10 @@
   let allLogs = [];
   let currentFilter = 'all';
   let currentState = 'all';
+  let currentRange = 'all';
   let currentSearch = '';
+  let customFrom = null;  // Date
+  let customTo = null;    // Date
 
   async function loadLogs() {
     try {
@@ -457,19 +474,30 @@
     }
   }
 
+  function parseLogTs(ts) {
+    if (!ts) return null;
+    let d = new Date(ts);
+    if (isNaN(d) && typeof ts === 'string' && /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(ts)) {
+      d = new Date(ts.replace(' ', 'T') + 'Z');
+    }
+    return isNaN(d) ? null : d;
+  }
+
   function updateStats() {
     const total = allLogs.length;
-    let replied = 0, escalated = 0, spam = 0, today = 0;
+    let replied = 0, escalated = 0, spam = 0, failed = 0, today = 0;
     const dayAgo = Date.now() - 24*60*60*1000;
 
     allLogs.forEach(log => {
       const status = (log.status || '').toUpperCase();
-      if (status.includes('SPAM')) spam++;
+      const reason = (log.reason || '').toUpperCase();
+      if (reason.includes('BOT FAILED')) failed++;
+      else if (status.includes('SPAM')) spam++;
       else if (status.includes('ESCALATED')) escalated++;
       else if (status.includes('AUTO-REPLIED') || status.includes('REPLIED')) replied++;
 
-      const ts = new Date(log.timestamp);
-      if (!isNaN(ts) && ts.getTime() > dayAgo) today++;
+      const ts = parseLogTs(log.timestamp);
+      if (ts && ts.getTime() > dayAgo) today++;
     });
 
     document.getElementById('statTotal').textContent = total.toLocaleString();
@@ -479,23 +507,59 @@
     document.getElementById('statToday').textContent = today.toLocaleString();
   }
 
-  function badgeFor(status) {
+  function badgeFor(status, reason) {
     const s = (status || '').toUpperCase();
+    const r = (reason || '').toUpperCase();
+    if (r.includes('BOT FAILED')) return '<span class="badge" style="background:#f3e8ff;color:#6b21a8;">Bot Failed</span>';
     if (s.includes('SPAM')) return '<span class="badge badge-red">Spam</span>';
     if (s.includes('ESCALATED')) return '<span class="badge badge-yellow">Escalated</span>';
     if (s.includes('AUTO-REPLIED') || s.includes('REPLIED')) return '<span class="badge badge-green">Auto-Replied</span>';
     return '<span class="badge">' + (status || 'Unknown') + '</span>';
   }
 
+  function inDateRange(ts) {
+    if (currentRange === 'all') return true;
+    if (!ts) return false;
+    const d = new Date(ts);
+    if (isNaN(d)) return false;
+    const now = new Date();
+
+    if (currentRange === 'today') {
+      return d.toDateString() === now.toDateString();
+    }
+    if (currentRange === '24h') {
+      return d.getTime() >= (now.getTime() - 24 * 60 * 60 * 1000);
+    }
+    if (currentRange === '7d') {
+      return d.getTime() >= (now.getTime() - 7 * 24 * 60 * 60 * 1000);
+    }
+    if (currentRange === 'custom') {
+      if (customFrom && d < customFrom) return false;
+      if (customTo) {
+        // inclusive of end date — treat customTo as end-of-day
+        const endOfDay = new Date(customTo.getTime() + 24 * 60 * 60 * 1000 - 1);
+        if (d > endOfDay) return false;
+      }
+      return true;
+    }
+    return true;
+  }
+
   function filterLogs() {
     return allLogs.filter(log => {
       const status = (log.status || '').toUpperCase();
+      const reason = (log.reason || '').toUpperCase();
+      const isFailed = reason.includes('BOT FAILED');
+
       if (currentFilter === 'replied' && !(status.includes('AUTO-REPLIED') || status.includes('REPLIED'))) return false;
-      if (currentFilter === 'escalated' && !status.includes('ESCALATED')) return false;
+      if (currentFilter === 'escalated' && (!status.includes('ESCALATED') || isFailed)) return false;
       if (currentFilter === 'spam' && !status.includes('SPAM')) return false;
+      if (currentFilter === 'failed' && !isFailed) return false;
 
       const state = (log.state || 'CT').toUpperCase();
       if (currentState !== 'all' && state !== currentState) return false;
+
+      if (!inDateRange(log.timestamp)) return false;
 
       if (currentSearch) {
         const q = currentSearch.toLowerCase();
@@ -521,7 +585,12 @@
 
   function formatDate(ts) {
     if (!ts) return '—';
-    const d = new Date(ts);
+    // Handle bare "YYYY-MM-DD HH:MM:SS" strings (no timezone) by
+    // treating them as UTC (the bot emits UTC before we fixed it).
+    let d = new Date(ts);
+    if (isNaN(d) && typeof ts === 'string' && /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(ts)) {
+      d = new Date(ts.replace(' ', 'T') + 'Z');
+    }
     if (isNaN(d)) return ts;
     const today = new Date();
     const sameDay = d.toDateString() === today.toDateString();
@@ -552,7 +621,7 @@
         '<td>' + stateBadge(log.state) + '</td>' +
         '<td class="col-from"><div class="truncate">' + escapeHtml(log.from) + '</div></td>' +
         '<td><div class="truncate">' + escapeHtml(log.subject) + '</div></td>' +
-        '<td>' + badgeFor(log.status) + '</td>' +
+        '<td>' + badgeFor(log.status, log.reason) + '</td>' +
         '</tr>';
     });
     html += '</tbody></table>';
@@ -572,7 +641,7 @@
     const body = document.getElementById('modalBody');
     body.innerHTML =
       '<div class="modal-row"><div class="modal-label">Status · State</div>' +
-      '<div>' + badgeFor(log.status) + ' ' + stateBadge(log.state) + '</div></div>' +
+      '<div>' + badgeFor(log.status, log.reason) + ' ' + stateBadge(log.state) + '</div></div>' +
       '<div class="modal-row"><div class="modal-label">Timestamp</div>' +
       '<div class="modal-value">' + escapeHtml(log.timestamp) + '</div></div>' +
       '<div class="modal-row"><div class="modal-label">Contact ID</div>' +
@@ -620,6 +689,29 @@
       currentState = chip.dataset.state;
       renderTable();
     });
+  });
+
+  // Date range filter chips
+  document.querySelectorAll('.filter-chip[data-range]').forEach(chip => {
+    chip.addEventListener('click', () => {
+      document.querySelectorAll('.filter-chip[data-range]').forEach(c => c.classList.remove('active'));
+      chip.classList.add('active');
+      currentRange = chip.dataset.range;
+      const showCustom = (currentRange === 'custom');
+      document.getElementById('dateFrom').style.display = showCustom ? '' : 'none';
+      document.getElementById('dateTo').style.display = showCustom ? '' : 'none';
+      document.getElementById('dateDash').style.display = showCustom ? '' : 'none';
+      renderTable();
+    });
+  });
+
+  document.getElementById('dateFrom').addEventListener('change', e => {
+    customFrom = e.target.value ? new Date(e.target.value + 'T00:00:00') : null;
+    if (currentRange === 'custom') renderTable();
+  });
+  document.getElementById('dateTo').addEventListener('change', e => {
+    customTo = e.target.value ? new Date(e.target.value + 'T00:00:00') : null;
+    if (currentRange === 'custom') renderTable();
   });
 
   document.getElementById('refreshBtn').addEventListener('click', loadLogs);

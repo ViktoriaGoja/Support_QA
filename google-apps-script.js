@@ -74,17 +74,11 @@ function doGet(e) {
 }
 
 
-// Convert Date objects to ISO strings, pass through other values
+// Convert Date objects to ISO-8601 UTC strings so the browser can
+// parse them correctly and display in the viewer's local timezone.
 function formatCell(v) {
   if (v instanceof Date) {
-    // Format as YYYY-MM-DD HH:mm:ss (matches what the bot sends)
-    var pad = function(n) { return n < 10 ? '0' + n : n; };
-    return v.getFullYear() + '-' +
-      pad(v.getMonth() + 1) + '-' +
-      pad(v.getDate()) + ' ' +
-      pad(v.getHours()) + ':' +
-      pad(v.getMinutes()) + ':' +
-      pad(v.getSeconds());
+    return v.toISOString();  // e.g. "2026-04-21T18:01:05.000Z"
   }
   return String(v || '');
 }
