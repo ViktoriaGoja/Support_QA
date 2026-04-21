@@ -415,7 +415,11 @@ def dashboard_logout():
 @app.route("/api/logs", methods=["GET"])
 def api_logs():
     """Proxy to Google Sheets Apps Script to fetch email logs as JSON.
-    Only accessible to authenticated dashboard users."""
+    Only accessible to authenticated dashboard users.
+
+    Caps response to the most recent 500 rows to keep memory usage under
+    control on Render's free tier (1.7 MB responses were causing OOM kills
+    of the gunicorn worker, which silently killed incoming emails)."""
     if not _dashboard_authed():
         return jsonify({"error": "unauthorized"}), 401
 
@@ -423,20 +427,67 @@ def api_logs():
     if not sheets_url:
         return jsonify({"logs": [], "error": "GOOGLE_SHEETS_WEBHOOK not configured"})
 
+    MAX_ROWS = 500
+
     try:
         resp = http_requests.get(sheets_url, timeout=30)
         resp.raise_for_status()
         data = resp.json()
         # Expect shape: {"logs": [...]}
         if isinstance(data, dict) and "logs" in data:
-            return jsonify(data)
-        # Tolerate bare list
-        if isinstance(data, list):
-            return jsonify({"logs": data})
-        return jsonify({"logs": [], "error": "Unexpected response shape"})
+            logs_list = data.get("logs", [])
+        elif isinstance(data, list):
+            logs_list = data
+        else:
+            return jsonify({"logs": [], "error": "Unexpected response shape"})
+
+        total = len(logs_list)
+        # Keep the last MAX_ROWS (newest) — sheet is append-only so newest is at end
+        truncated = logs_list[-MAX_ROWS:] if total > MAX_ROWS else logs_list
+        return jsonify({
+            "logs": truncated,
+            "total": total,
+            "returned": len(truncated),
+            "truncated": total > MAX_ROWS,
+        })
     except Exception as exc:
         log.error(f"[DASHBOARD] Failed to fetch logs: {exc}")
         return jsonify({"logs": [], "error": str(exc)}), 502
+
+
+@app.route("/api/email-failed", methods=["GET", "POST"])
+def api_email_failed():
+    """Called by the Studio script when the main /api/email call fails
+    (bot was down, timed out, or returned an empty result). Logs the
+    failure to Google Sheets so it shows up on the dashboard as a
+    'BOT FAILED' row instead of silently disappearing into the agent queue.
+
+    Studio calls this as a fire-and-forget GET with query params:
+      /api/email-failed?contactId=XXX&from=someone@example.com&state=CT
+    """
+    contact_id = request.args.get("contactId", "unknown")
+    sender = request.args.get("from", "unknown")
+    state = (request.args.get("state", "") or "CT").upper()
+    subject = request.args.get("subject", "(bot call failed)")
+
+    log.warning(
+        f"[EMAIL-FAILED {contact_id}] Studio reported bot call failure "
+        f"state={state} from={sender}"
+    )
+
+    # Log to sheet / file so we can count these on the dashboard
+    _save_email_log(
+        contact_id=contact_id,
+        sender=sender,
+        subject=subject,
+        body="(Studio script reported the bot call failed — email routed to agent queue without bot processing)",
+        reply="",
+        escalated=True,
+        spam=False,
+        reason="BOT FAILED — Studio fallback fired",
+        state=state,
+    )
+    return jsonify({"logged": True})
 
 
 # ── Health check ─────────────────────────────────────────────────

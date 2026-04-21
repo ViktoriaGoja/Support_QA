@@ -1,8 +1,10 @@
 // ═══════════════════════════════════════════════════════════════
-// CT EMAIL BOT — Studio Snippet (updated with explicit state)
+// CT EMAIL BOT — Studio Snippet
 // ═══════════════════════════════════════════════════════════════
-// Paste this into the SNIPPET action of your existing CT Studio script.
-// Adds state="CT" so the bot uses CT-only knowledge base content.
+// Includes:
+// - Autos1000 spam blocking
+// - Direct variable passing (no {var} substitution) to prevent JSON errors
+// - Fallback failure logging if the bot is down / times out
 // ═══════════════════════════════════════════════════════════════
 
 // ── Block unwanted email senders ──
@@ -22,6 +24,12 @@ IF blockEmail = "true"
 }
 ELSE
 {
+   // Default values — will be used if the bot call fails
+   ASSIGN botReply = ""
+   ASSIGN botEscalate = "true"
+   ASSIGN botSpam = "false"
+
+   // Call the bot
    ASSIGN proxy = GetRESTProxy()
    ASSIGN proxy.ContentType = "application/json"
    ASSIGN proxy.ProxyTimeoutSeconds = 90
@@ -38,7 +46,23 @@ ELSE
    DYNAMIC result
    ASSIGN result = proxy.MakeRestRequest(botUrl, payload, 0, "POST")
 
-   ASSIGN botReply = "{result.reply}"
-   ASSIGN botEscalate = "{result.escalate}"
-   ASSIGN botSpam = "{result.spam}"
+   ASSIGN gotResult = "false"
+   IF result.confidence != ""
+   {
+      ASSIGN gotResult = "true"
+   }
+
+   IF gotResult = "true"
+   {
+      ASSIGN botReply = "{result.reply}"
+      ASSIGN botEscalate = "{result.escalate}"
+      ASSIGN botSpam = "{result.spam}"
+   }
+   ELSE
+   {
+      // Bot call failed — log the miss so it shows up on dashboard
+      ASSIGN failUrl = "https://cxone-faq-bot-1.onrender.com/api/email-failed?contactId={ContactId}&from={emailFrom}&state=CT&subject={emailSubject}"
+      DYNAMIC failResult
+      ASSIGN failResult = proxy.MakeRestRequest(failUrl, "", 0, "GET")
+   }
 }
