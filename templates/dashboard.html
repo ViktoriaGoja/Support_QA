@@ -484,11 +484,20 @@
   }
 
   function updateStats() {
-    const total = allLogs.length;
+    // Stats respect the active date range + state filter, but ignore
+    // the status filter (since the stats themselves break down by status).
+    const scoped = allLogs.filter(log => {
+      if (!inDateRange(log.timestamp)) return false;
+      const state = (log.state || 'CT').toUpperCase();
+      if (currentState !== 'all' && state !== currentState) return false;
+      return true;
+    });
+
+    let total = scoped.length;
     let replied = 0, escalated = 0, spam = 0, failed = 0, today = 0;
     const dayAgo = Date.now() - 24*60*60*1000;
 
-    allLogs.forEach(log => {
+    scoped.forEach(log => {
       const status = (log.status || '').toUpperCase();
       const reason = (log.reason || '').toUpperCase();
       if (reason.includes('BOT FAILED')) failed++;
@@ -500,11 +509,26 @@
       if (ts && ts.getTime() > dayAgo) today++;
     });
 
+    // Update the label on the "Today" card to reflect what's being counted
+    const rangeLabel = {
+      'all':    'All time',
+      'today':  'Today only',
+      '24h':    'Last 24h',
+      '7d':     'Last 7 days',
+      'custom': 'Custom range',
+    }[currentRange] || 'All time';
+
     document.getElementById('statTotal').textContent = total.toLocaleString();
     document.getElementById('statReplied').textContent = replied.toLocaleString();
     document.getElementById('statEscalated').textContent = escalated.toLocaleString();
     document.getElementById('statSpam').textContent = spam.toLocaleString();
     document.getElementById('statToday').textContent = today.toLocaleString();
+
+    // Update sub-labels so user can see the scope
+    document.querySelectorAll('.stat-sub').forEach((el, idx) => {
+      // Only update the "Total" card's sub-label
+      if (idx === 0) el.textContent = rangeLabel;
+    });
   }
 
   function badgeFor(status, reason) {
@@ -677,6 +701,7 @@
       document.querySelectorAll('.filter-chip[data-filter]').forEach(c => c.classList.remove('active'));
       chip.classList.add('active');
       currentFilter = chip.dataset.filter;
+      updateStats();
       renderTable();
     });
   });
@@ -687,6 +712,7 @@
       document.querySelectorAll('.filter-chip[data-state]').forEach(c => c.classList.remove('active'));
       chip.classList.add('active');
       currentState = chip.dataset.state;
+      updateStats();
       renderTable();
     });
   });
@@ -701,18 +727,22 @@
       document.getElementById('dateFrom').style.display = showCustom ? '' : 'none';
       document.getElementById('dateTo').style.display = showCustom ? '' : 'none';
       document.getElementById('dateDash').style.display = showCustom ? '' : 'none';
+      updateStats();
       renderTable();
     });
   });
 
   document.getElementById('dateFrom').addEventListener('change', e => {
     customFrom = e.target.value ? new Date(e.target.value + 'T00:00:00') : null;
-    if (currentRange === 'custom') renderTable();
+    if (currentRange === 'custom') { updateStats(); renderTable(); }
   });
   document.getElementById('dateTo').addEventListener('change', e => {
     customTo = e.target.value ? new Date(e.target.value + 'T00:00:00') : null;
-    if (currentRange === 'custom') renderTable();
+    if (currentRange === 'custom') { updateStats(); renderTable(); }
   });
+
+  // Also re-run stats when the search field changes (so totals don't drift)
+  document.getElementById('searchInput').addEventListener('input', () => updateStats());
 
   document.getElementById('refreshBtn').addEventListener('click', loadLogs);
 
