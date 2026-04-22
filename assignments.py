@@ -194,7 +194,8 @@ def generate_assignments():
         return jsonify({"error": "screening_due_date must be YYYY-MM-DD"}), 400
 
     # Date range: due_date - 15 days to due_date
-    start_date = (due_date - timedelta(days=15)).strftime("%Y-%m-%d")
+    # Pull contacts from the last 2 weeks only
+    start_date = (due_date - timedelta(days=14)).strftime("%Y-%m-%d")
     end_date = due_date.strftime("%Y-%m-%d")
 
     # Week of (Monday of the due date week)
