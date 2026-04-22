@@ -1,13 +1,11 @@
 // ═══════════════════════════════════════════════════════════════
-// CT EMAIL BOT — Studio Snippet
+// CT EMAIL BOT — Studio Snippet (with heartbeat)
 // ═══════════════════════════════════════════════════════════════
-// Includes:
-// - Autos1000 spam blocking
-// - Direct variable passing (no {var} substitution) to prevent JSON errors
-// - Fallback failure logging if the bot is down / times out
+// Fires a fast heartbeat GET FIRST to guarantee the email is logged
+// even if the main POST later times out. Then calls the bot normally.
 // ═══════════════════════════════════════════════════════════════
 
-// ── Block unwanted email senders ──
+// ── Block known spam senders ──
 ASSIGN blockEmail = "false"
 ASSIGN emailFromLower = "{emailFrom.lower()}"
 ASSIGN isSpam = emailFromLower.contains('autos1000.com')
@@ -24,12 +22,20 @@ IF blockEmail = "true"
 }
 ELSE
 {
-   // Default values — will be used if the bot call fails
+   // Default values — used if main bot call fails
    ASSIGN botReply = ""
    ASSIGN botEscalate = "true"
    ASSIGN botSpam = "false"
 
-   // Call the bot
+   // ── Step 1: Fire heartbeat (fast, fire-and-forget) ──
+   ASSIGN hbProxy = GetRESTProxy()
+   ASSIGN hbProxy.ContentType = "application/json"
+   ASSIGN hbProxy.ProxyTimeoutSeconds = 10
+   ASSIGN hbUrl = "https://cxone-faq-bot-1.onrender.com/api/heartbeat?contactId={ContactId}&from={emailFrom}&state=CT&subject={emailSubject}"
+   DYNAMIC hbResult
+   ASSIGN hbResult = hbProxy.MakeRestRequest(hbUrl, "", 0, "GET")
+
+   // ── Step 2: Main bot call ──
    ASSIGN proxy = GetRESTProxy()
    ASSIGN proxy.ContentType = "application/json"
    ASSIGN proxy.ProxyTimeoutSeconds = 90
@@ -46,23 +52,11 @@ ELSE
    DYNAMIC result
    ASSIGN result = proxy.MakeRestRequest(botUrl, payload, 0, "POST")
 
-   ASSIGN gotResult = "false"
+   // If we got a response, use it. Otherwise keep defaults (escalate).
    IF result.confidence != ""
-   {
-      ASSIGN gotResult = "true"
-   }
-
-   IF gotResult = "true"
    {
       ASSIGN botReply = "{result.reply}"
       ASSIGN botEscalate = "{result.escalate}"
       ASSIGN botSpam = "{result.spam}"
-   }
-   ELSE
-   {
-      // Bot call failed — log the miss so it shows up on dashboard
-      ASSIGN failUrl = "https://cxone-faq-bot-1.onrender.com/api/email-failed?contactId={ContactId}&from={emailFrom}&state=CT&subject={emailSubject}"
-      DYNAMIC failResult
-      ASSIGN failResult = proxy.MakeRestRequest(failUrl, "", 0, "GET")
    }
 }

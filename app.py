@@ -457,6 +457,41 @@ def api_logs():
         return jsonify({"logs": [], "error": str(exc)}), 502
 
 
+@app.route("/api/heartbeat", methods=["GET", "POST"])
+def api_heartbeat():
+    """Lightweight endpoint fired by Studio BEFORE the main /api/email POST.
+    Logs that an email entered the Studio snippet, so we have proof the
+    email reached us even if the main POST later times out or the script
+    gets killed mid-execution.
+
+    Studio fires a fire-and-forget GET:
+      /api/heartbeat?contactId=XXX&from=...&state=CT&subject=...
+
+    Logs a row with status "RECEIVED" — the dashboard dedupes by
+    contactId and hides the heartbeat row once a final result arrives."""
+    contact_id = request.args.get("contactId", "unknown")
+    sender = request.args.get("from", "unknown")
+    state = (request.args.get("state", "") or "CT").upper()
+    subject = request.args.get("subject", "")
+
+    log.info(f"[HEARTBEAT {contact_id}] Studio reported email entered snippet (state={state})")
+
+    # Log directly to Google Sheets with status "RECEIVED" (distinct from
+    # final outcomes). Dashboard dedupes by contactId — if a final result
+    # lands later, it overrides this heartbeat row.
+    _log_to_google_sheets(
+        contact_id=contact_id,
+        sender=sender,
+        subject=subject,
+        body="(Heartbeat — email entered Studio snippet; awaiting bot)",
+        reply="",
+        status="RECEIVED (heartbeat)",
+        reason="HEARTBEAT — email reached Studio snippet",
+        state=state,
+    )
+    return jsonify({"heartbeat": True, "contactId": contact_id})
+
+
 @app.route("/api/email-failed", methods=["GET", "POST"])
 def api_email_failed():
     """Called by the Studio script when the main /api/email call fails

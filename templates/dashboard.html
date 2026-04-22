@@ -455,6 +455,65 @@
   let customFrom = null;  // Date
   let customTo = null;    // Date
 
+  function dedupeByContactId(logs) {
+    // If a contact ID has both a HEARTBEAT row and a final outcome row,
+    // keep the final one. If only heartbeat (i.e. bot never responded),
+    // convert the heartbeat to "BOT FAILED" status so it shows correctly.
+    const byContact = new Map();
+    // Heartbeat is ≥2 minutes old and still has no partner → mark as failed
+    const FAIL_THRESHOLD_MS = 2 * 60 * 1000;
+    const now = Date.now();
+
+    logs.forEach(log => {
+      const cid = log.contactId || '';
+      if (!cid) { byContact.set(Symbol(), log); return; }  // no contact id, keep as-is
+
+      const existing = byContact.get(cid);
+      const isHeartbeat = (log.status || '').toUpperCase().includes('RECEIVED');
+
+      if (!existing) {
+        byContact.set(cid, log);
+        return;
+      }
+      const existingIsHB = (existing.status || '').toUpperCase().includes('RECEIVED');
+      // Prefer the non-heartbeat (final) row
+      if (existingIsHB && !isHeartbeat) {
+        byContact.set(cid, log);
+      } else if (!existingIsHB && isHeartbeat) {
+        // keep existing
+      } else {
+        // Both same type — keep the later one
+        const existingTs = parseLogTs(existing.timestamp);
+        const newTs = parseLogTs(log.timestamp);
+        if (newTs && existingTs && newTs > existingTs) byContact.set(cid, log);
+      }
+    });
+
+    // Post-process: for heartbeat-only rows older than 2 min, mark BOT FAILED
+    const result = [];
+    for (const log of byContact.values()) {
+      const isHeartbeat = (log.status || '').toUpperCase().includes('RECEIVED');
+      if (isHeartbeat) {
+        const ts = parseLogTs(log.timestamp);
+        const age = ts ? (now - ts.getTime()) : 0;
+        if (age > FAIL_THRESHOLD_MS) {
+          // Upgrade to BOT FAILED so it shows on the dashboard correctly
+          result.push({
+            ...log,
+            status: 'BOT FAILED — Studio heartbeat only',
+            reason: 'BOT FAILED — heartbeat received but bot never responded',
+          });
+        } else {
+          // Too new to judge — drop from display
+          result.push({ ...log, status: 'PROCESSING' });
+        }
+      } else {
+        result.push(log);
+      }
+    }
+    return result;
+  }
+
   async function loadLogs() {
     try {
       document.getElementById('tableContent').innerHTML =
@@ -463,7 +522,8 @@
       const resp = await fetch('/api/logs');
       if (!resp.ok) throw new Error('Failed to load logs: ' + resp.status);
       const data = await resp.json();
-      allLogs = (data.logs || []).reverse();  // newest first
+      const rawLogs = (data.logs || []);
+      allLogs = dedupeByContactId(rawLogs).reverse();  // newest first
       updateStats();
       renderTable();
       document.getElementById('lastRefresh').textContent = new Date().toLocaleTimeString();
@@ -534,7 +594,8 @@
   function badgeFor(status, reason) {
     const s = (status || '').toUpperCase();
     const r = (reason || '').toUpperCase();
-    if (r.includes('BOT FAILED')) return '<span class="badge" style="background:#f3e8ff;color:#6b21a8;">Bot Failed</span>';
+    if (s.includes('BOT FAILED') || r.includes('BOT FAILED')) return '<span class="badge" style="background:#f3e8ff;color:#6b21a8;">Bot Failed</span>';
+    if (s.includes('PROCESSING')) return '<span class="badge" style="background:#e0e7ff;color:#4338ca;">Processing</span>';
     if (s.includes('SPAM')) return '<span class="badge badge-red">Spam</span>';
     if (s.includes('ESCALATED')) return '<span class="badge badge-yellow">Escalated</span>';
     if (s.includes('AUTO-REPLIED') || s.includes('REPLIED')) return '<span class="badge badge-green">Auto-Replied</span>';
