@@ -134,6 +134,34 @@ class CXoneClient:
             url = next_link if next_link else None
         return all_agents
 
+    # ── Agent state history ──────────────────────────────────────
+    def get_agent_states_history(self, start_date: str, end_date: str) -> list:
+        """
+        Fetch agent state transitions for a date range.
+        Used to compute per-agent unavailable time.
+        Returns list of state-change dicts.
+        """
+        all_states = []
+        url = (
+            f"{self.base_url}/incontactapi/services/v30.0/"
+            f"agents/states?startDate={start_date}&endDate={end_date}&top=1000"
+        )
+        while url:
+            resp = requests.get(url, headers=self._headers(), timeout=30)
+            resp.raise_for_status()
+            data = resp.json()
+            # CXone returns the list under "agentStateHistory" or "agentStates"
+            states = (
+                data.get("agentStateHistory")
+                or data.get("agentStates")
+                or data.get("states")
+                or []
+            )
+            all_states.extend(states)
+            next_link = data.get("_links", {}).get("next")
+            url = next_link if next_link else None
+        return all_states
+
     # ── Health check ─────────────────────────────────────────────
     def ping(self) -> bool:
         """Return True if we can authenticate successfully."""

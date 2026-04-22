@@ -54,6 +54,10 @@ log.info(f"Using engine: {_engine}")
 from assignments import assignments_bp
 app.register_blueprint(assignments_bp)
 
+# Register metrics blueprint
+from metrics import metrics_bp
+app.register_blueprint(metrics_bp)
+
 
 # ── Auth helper ──────────────────────────────────────────────────
 def _check_api_key() -> bool:
