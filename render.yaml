@@ -3,7 +3,11 @@ services:
     name: cxone-faq-bot
     runtime: python
     buildCommand: pip install -r requirements.txt
-    startCommand: gunicorn app:app --bind 0.0.0.0:$PORT --workers 2 --timeout 120
+    # Threaded worker: 1 process, 8 threads per request.
+    # Each email call blocks ~9s on the Claude API (I/O-bound), and Render
+    # free tier forces WEB_CONCURRENCY=1 anyway. Threads let one process
+    # handle 8 concurrent emails instead of queueing them sequentially.
+    startCommand: gunicorn app:app --bind 0.0.0.0:$PORT --workers 1 --threads 8 --worker-class gthread --timeout 120 --preload
     envVars:
       - key: PYTHON_VERSION
         value: 3.12.0
