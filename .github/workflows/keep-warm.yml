@@ -1,0 +1,41 @@
+name: Keep Bot Warm
+
+# Pings the bot's /health endpoint every 10 minutes so Render's free
+# tier never spins it down. This eliminates the cold-start delay that
+# was causing CXone Studio's 90-second timeout to fire on first emails
+# after periods of inactivity.
+#
+# GitHub Actions cron jobs run on UTC. Schedule: every 10 minutes
+# during business hours (we don't need it warm at 3am ET).
+#
+# Free tier limits: 2000 minutes/month for private repos. This job
+# uses ~5 seconds × 6 runs/hour × 24h × 30d = ~3.6 hours/month, well
+# within the free tier even on private repos.
+
+on:
+  schedule:
+    # Every 10 minutes (the most frequent GitHub Actions allows is */5)
+    - cron: '*/10 * * * *'
+  # Allow manual trigger from GitHub UI for testing
+  workflow_dispatch:
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Ping bot health endpoint
+        run: |
+          echo "Pinging bot at $(date -u)..."
+          STATUS=$(curl -s -o /tmp/response.txt -w "%{http_code}" \
+            --max-time 60 \
+            https://cxone-faq-bot-1.onrender.com/health)
+          echo "HTTP status: $STATUS"
+          echo "Response:"
+          cat /tmp/response.txt
+          echo ""
+          if [ "$STATUS" != "200" ]; then
+            echo "::warning::Bot health check returned $STATUS"
+            exit 1
+          fi
+          echo "✅ Bot is warm and healthy"
