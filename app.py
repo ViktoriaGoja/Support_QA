@@ -46,6 +46,7 @@ log = logging.getLogger("cxone-bot")
 app = Flask(__name__)
 CORS(app, origins=[
     "https://viktoriagoja.github.io",
+    "https://the-next-street.github.io",
     "http://localhost:3000",
 ])
 log.info(f"Using engine: {_engine}")
