@@ -9,16 +9,15 @@ Endpoints:
   GET /api/metrics/unavailable?startDate=YYYY-MM-DD&endDate=YYYY-MM-DD
 """
 
-import hmac
-import os
 import logging
 from datetime import datetime, timedelta
 from collections import defaultdict
 
 from flask import Blueprint, request, jsonify
 from cxone_client import get_client
+from auth import require_auth
 
-log = logging.getLogger("cxone-bot")
+log = logging.getLogger("qa-service")
 
 metrics_bp = Blueprint("metrics", __name__, url_prefix="/api/metrics")
 
@@ -37,14 +36,6 @@ MEDIA_TYPE_MAP = {
     "workitem": "SMS",
     "work item": "SMS",
 }
-
-
-def _check_auth() -> bool:
-    expected_key = os.getenv("BOT_API_KEY", "")
-    if not expected_key:
-        return True
-    provided = request.headers.get("X-API-Key", "") or request.args.get("api_key", "")
-    return hmac.compare_digest(expected_key, provided)
 
 
 def _map_channel(contact: dict) -> str | None:
@@ -78,6 +69,7 @@ def _query_end(end_date: str) -> str:
 # ── Productivity endpoint ──────────────────────────────────────────
 
 @metrics_bp.route("/productivity", methods=["GET"])
+@require_auth
 def productivity():
     """
     Return per-agent productivity metrics from completed contacts.
@@ -89,9 +81,6 @@ def productivity():
       - avgHandleSeconds
       - refusedCount
     """
-    if not _check_auth():
-        return jsonify({"error": "Unauthorized"}), 401
-
     try:
         start_date, end_date = _parse_date_range(default_days=7)
     except ValueError as e:
@@ -180,15 +169,13 @@ UNAVAILABLE_STATES = {
 
 
 @metrics_bp.route("/unavailable", methods=["GET"])
+@require_auth
 def unavailable_time():
     """
     Return per-agent unavailable-time totals for the date range.
     Uses CXone agent state history. If the state history endpoint
     isn't available on this tenant, returns an empty array with a note.
     """
-    if not _check_auth():
-        return jsonify({"error": "Unauthorized"}), 401
-
     try:
         start_date, end_date = _parse_date_range(default_days=7)
     except ValueError as e:

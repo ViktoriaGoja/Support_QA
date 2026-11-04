@@ -27,3 +27,27 @@ services:
         value: "[ESCALATE]"
       - key: FALLBACK_MESSAGE
         value: "I'm not sure I can help with that. Let me connect you with a team member."
+
+  # ── QA tools (assignments + agent metrics) ───────────────────────
+  # Completely separate from the bot above: own service, own key, no
+  # Claude. Suspending or redeploying the bot never affects it.
+  - type: web
+    name: tns-qa-service
+    runtime: python
+    rootDir: qa
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn app:app --bind 0.0.0.0:$PORT --workers 1 --threads 4 --worker-class gthread --timeout 120
+    healthCheckPath: /health
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.0
+      - key: QA_API_KEY
+        sync: false
+      - key: CXONE_ACCESS_KEY_ID
+        sync: false
+      - key: CXONE_ACCESS_KEY_SECRET
+        sync: false
+      - key: CXONE_TENANT_ID
+        sync: false
+      - key: CXONE_BASE_URL
+        value: https://api-na1.niceincontact.com

@@ -34,8 +34,6 @@ else:
     find_email_answer = None
     _engine = "keyword"
 
-from cxone_client import get_client
-
 # ── Logging ──────────────────────────────────────────────────────
 logging.basicConfig(
     level=logging.INFO,
@@ -51,13 +49,8 @@ CORS(app, origins=[
 ])
 log.info(f"Using engine: {_engine}")
 
-# Register assignments blueprint
-from assignments import assignments_bp
-app.register_blueprint(assignments_bp)
-
-# Register metrics blueprint
-from metrics import metrics_bp
-app.register_blueprint(metrics_bp)
+# The QA assignments/metrics tools now run as a separate service in qa/
+# (own Render service, own QA_API_KEY). Nothing here depends on them.
 
 
 # ── Auto-reply switch ────────────────────────────────────────────
@@ -560,16 +553,10 @@ def api_email_failed():
 # ── Health check ─────────────────────────────────────────────────
 @app.route("/health", methods=["GET"])
 def health():
-    cxone_ok = False
-    try:
-        cxone_ok = get_client().ping()
-    except Exception:
-        pass
     return jsonify({
         "status": "ok",
         "engine": _engine,
         "auto_reply": _auto_reply_enabled(),
-        "cxone_connected": cxone_ok,
     })
 
 

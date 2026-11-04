@@ -17,6 +17,13 @@ Can answer?  →  Studio sends the reply to the customer
 Can't answer? →  Studio routes to a human agent
 ```
 
+## QA tools live in `qa/` (separate service)
+
+The QA assignments generator and agent metrics are **not** part of this bot.
+They run as their own Render service (`tns-qa-service`) from the `qa/`
+folder, with their own key (`QA_API_KEY`) and their own CXone credentials.
+Suspending or redeploying the bot never affects them. See `qa/README.md`.
+
 ## Turning auto-replies on/off
 
 Auto-replies are **off** unless the `AUTO_REPLY_ENABLED` environment variable

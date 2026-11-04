@@ -11,21 +11,17 @@ import random
 from datetime import datetime, timedelta
 from flask import Blueprint, request, jsonify
 from cxone_client import get_client
+from auth import require_auth
 
-log = logging.getLogger("cxone-bot")
+log = logging.getLogger("qa-service")
 
 assignments_bp = Blueprint("assignments", __name__, url_prefix="/api/assignments")
 
 
 @assignments_bp.route("/debug-contacts", methods=["GET"])
+@require_auth
 def debug_contacts():
     """Return a sample of raw CXone contacts to inspect field names."""
-    import hmac, os
-    expected_key = os.getenv("BOT_API_KEY", "")
-    if expected_key:
-        provided = request.headers.get("X-API-Key", "") or request.args.get("api_key", "")
-        if not hmac.compare_digest(expected_key, provided):
-            return jsonify({"error": "Unauthorized"}), 401
     try:
         client = get_client()
         end = datetime.utcnow()
@@ -174,6 +170,7 @@ def _select_interactions(contacts: list, count: int = 5) -> list:
 # ── Main endpoint ───────────────────────────────────────────────
 
 @assignments_bp.route("/generate", methods=["POST"])
+@require_auth
 def generate_assignments():
     """
     Generate QA assignments for the given evaluator-agent pairs.
@@ -187,14 +184,6 @@ def generate_assignments():
       "interactions_per_agent": 5
     }
     """
-    # Auth check
-    import hmac, os
-    expected_key = os.getenv("BOT_API_KEY", "")
-    if expected_key:
-        provided = request.headers.get("X-API-Key", "") or request.args.get("api_key", "")
-        if not hmac.compare_digest(expected_key, provided):
-            return jsonify({"error": "Unauthorized"}), 401
-
     body = request.get_json(force=True, silent=True)
     if not isinstance(body, dict):
         return jsonify({"error": "Invalid JSON"}), 400
