@@ -45,8 +45,55 @@ def test_faq_keyword_matching():
     return passed == len(cases)
 
 
+def test_auto_reply_disabled():
+    """With AUTO_REPLY_ENABLED unset/false, chat and email always escalate
+    and the answer engine is never called."""
+    import app as app_module
+
+    def _must_not_be_called(*args, **kwargs):
+        raise AssertionError("answer engine called while auto-reply is off")
+
+    saved = (app_module.find_answer, app_module.find_email_answer)
+    app_module.find_answer = _must_not_be_called
+    app_module.find_email_answer = _must_not_be_called
+    client = app.test_client()
+    for value in (None, "false", "0"):
+        if value is None:
+            os.environ.pop("AUTO_REPLY_ENABLED", None)
+        else:
+            os.environ["AUTO_REPLY_ENABLED"] = value
+
+        resp = client.post("/api/chat", json={
+            "contactId": "off-001",
+            "message": "What are your hours?",
+        })
+        data = resp.get_json()
+        assert resp.status_code == 200
+        assert data["escalate"] is True
+        assert data["reply"] == ""
+
+        resp = client.post("/api/email", json={
+            "contactId": "off-002",
+            "from": "customer@test.com",
+            "subject": "Hours",
+            "body": "What are your hours?",
+        })
+        data = resp.get_json()
+        assert resp.status_code == 200
+        assert data["escalate"] is True
+        assert data["reply"] == ""
+
+        resp = client.get("/health")
+        assert resp.get_json()["auto_reply"] is False
+    app_module.find_answer, app_module.find_email_answer = saved
+    print("  [PASS] auto-reply off: chat + email escalate, health reports off")
+    print()
+    return True
+
+
 def test_chat_endpoint():
-    """Test the /api/chat endpoint."""
+    """Test the /api/chat endpoint (auto-reply switched on)."""
+    os.environ["AUTO_REPLY_ENABLED"] = "true"
     client = app.test_client()
 
     # Matching question
@@ -124,13 +171,16 @@ if __name__ == "__main__":
     print("━━━ Chat Endpoint Tests ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
     t2 = test_chat_endpoint()
 
+    print("━━━ Auto-reply Off Switch ━━━━━━━━━━━━━━━━━━━━━━━━━━")
+    t5 = test_auto_reply_disabled()
+
     print("━━━ Email Endpoint Tests ━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
     t3 = test_email_endpoint()
 
     print("━━━ Health Check ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
     t4 = test_health()
 
-    if all([t1, t2, t3, t4]):
+    if all([t1, t2, t3, t4, t5]):
         print("All tests passed! ✓")
         sys.exit(0)
     else:

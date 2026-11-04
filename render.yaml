@@ -19,6 +19,10 @@ services:
         value: claude-sonnet-4-20250514
       - key: BOT_API_KEY
         sync: false
+      # Auto-replies are OFF unless this is "true". When off, every email
+      # and chat is escalated to a human agent and Claude is never called.
+      - key: AUTO_REPLY_ENABLED
+        value: "false"
       - key: ESCALATION_PHRASE
         value: "[ESCALATE]"
       - key: FALLBACK_MESSAGE

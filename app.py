@@ -60,6 +60,17 @@ from metrics import metrics_bp
 app.register_blueprint(metrics_bp)
 
 
+# ── Auto-reply switch ────────────────────────────────────────────
+def _auto_reply_enabled() -> bool:
+    """Auto-replies are OFF unless AUTO_REPLY_ENABLED is explicitly true.
+    When off, every chat/email is escalated to a human agent and Claude is
+    never called. Logging, the dashboard, and the QA tools keep working."""
+    return os.getenv("AUTO_REPLY_ENABLED", "").strip().lower() in ("1", "true", "yes", "on")
+
+
+AUTO_REPLY_OFF_REASON = "Auto-reply disabled (AUTO_REPLY_ENABLED is off) — routed to agent"
+
+
 # ── Auth helper ──────────────────────────────────────────────────
 def _check_api_key() -> bool:
     """Verify the request carries the correct API key.
@@ -124,6 +135,10 @@ def handle_chat():
 
     if not message:
         return jsonify({"reply": "", "escalate": False, "confidence": 0})
+
+    if not _auto_reply_enabled():
+        log.info(f"[CHAT {contact_id}] Auto-reply disabled — escalating")
+        return jsonify({"reply": "", "escalate": True, "confidence": 0})
 
     result = find_answer(message)
     log.info(
@@ -293,6 +308,18 @@ def handle_email():
             "state": state,
         })
 
+    if not _auto_reply_enabled():
+        log.info(f"[EMAIL {contact_id}] Auto-reply disabled — escalating")
+        _save_email_log(contact_id, sender, subject, body, "", True, False, AUTO_REPLY_OFF_REASON, state=state)
+        return jsonify({
+            "reply": "",
+            "escalate": True,
+            "confidence": 0,
+            "subject": f"Re: {subject}",
+            "spam": False,
+            "state": state,
+        })
+
     result = find_email_answer(
         sender=sender,
         subject=subject,
@@ -341,6 +368,9 @@ def cxone_webhook():
 
     if not customer_msg.strip():
         return jsonify({"replies": [], "escalate": False})
+
+    if not _auto_reply_enabled():
+        return jsonify({"replies": [], "escalate": True})
 
     result = find_answer(customer_msg)
 
@@ -543,6 +573,7 @@ def health():
     return jsonify({
         "status": "ok",
         "engine": _engine,
+        "auto_reply": _auto_reply_enabled(),
         "cxone_connected": cxone_ok,
     })
 

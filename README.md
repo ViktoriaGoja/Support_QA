@@ -17,6 +17,18 @@ Can answer?  →  Studio sends the reply to the customer
 Can't answer? →  Studio routes to a human agent
 ```
 
+## Turning auto-replies on/off
+
+Auto-replies are **off** unless the `AUTO_REPLY_ENABLED` environment variable
+is `true`. While off, `/api/email` and `/api/chat` escalate every contact to a
+human agent without calling Claude. Emails are still logged to the Google
+Sheet and the dashboard as "Auto-reply disabled". The dashboard and the QA
+tools are unaffected. `GET /health` reports the current setting as
+`auto_reply`.
+
+To turn auto-replies back on, set `AUTO_REPLY_ENABLED=true` in the Render
+dashboard. Render redeploys the service when you save.
+
 ## Quick Start
 
 ```bash
