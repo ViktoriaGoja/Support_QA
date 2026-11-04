@@ -254,15 +254,6 @@ def handle_email():
     if not _check_api_key():
         return jsonify({"error": "unauthorized"}), 401
 
-    if find_email_answer is None:
-        return jsonify({
-            "reply": "",
-            "escalate": True,
-            "confidence": 0,
-            "subject": "",
-            "error": "Email handling requires ANTHROPIC_API_KEY",
-        })
-
     # Parse JSON defensively — if Studio sends malformed JSON (e.g.
     # because an email body contains quotes/newlines), log what we got
     # and escalate to a human rather than returning 400.
@@ -308,9 +299,13 @@ def handle_email():
             "state": state,
         })
 
-    if not _auto_reply_enabled():
-        log.info(f"[EMAIL {contact_id}] Auto-reply disabled — escalating")
-        _save_email_log(contact_id, sender, subject, body, "", True, False, AUTO_REPLY_OFF_REASON, state=state)
+    if not _auto_reply_enabled() or find_email_answer is None:
+        reason = (
+            AUTO_REPLY_OFF_REASON if not _auto_reply_enabled()
+            else "No ANTHROPIC_API_KEY configured — routed to agent"
+        )
+        log.info(f"[EMAIL {contact_id}] {reason}")
+        _save_email_log(contact_id, sender, subject, body, "", True, False, reason, state=state)
         return jsonify({
             "reply": "",
             "escalate": True,

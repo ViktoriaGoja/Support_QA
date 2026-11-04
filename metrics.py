@@ -64,7 +64,15 @@ def _parse_date_range(default_days: int = 7):
         if not start_str
         else datetime.strptime(start_str, "%Y-%m-%d")
     )
+    if start > end:
+        raise ValueError("startDate is after endDate")
     return start.strftime("%Y-%m-%d"), end.strftime("%Y-%m-%d")
+
+
+def _query_end(end_date: str) -> str:
+    """CXone treats a date-only endDate as midnight at the START of that day.
+    Ask for the following day so the chosen end date is included."""
+    return (datetime.strptime(end_date, "%Y-%m-%d") + timedelta(days=1)).strftime("%Y-%m-%d")
 
 
 # ── Productivity endpoint ──────────────────────────────────────────
@@ -91,7 +99,7 @@ def productivity():
 
     try:
         client = get_client()
-        contacts = client.get_completed_contacts(start_date, end_date)
+        contacts = client.get_completed_contacts(start_date, _query_end(end_date))
         agents = client.get_agents()
     except Exception as e:
         return jsonify({"error": f"CXone fetch failed: {e}"}), 502
@@ -188,7 +196,7 @@ def unavailable_time():
 
     try:
         client = get_client()
-        states = client.get_agent_states_history(start_date, end_date)
+        states = client.get_agent_states_history(start_date, _query_end(end_date))
     except AttributeError:
         # Method not implemented on the client yet
         return jsonify({

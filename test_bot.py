@@ -151,6 +151,92 @@ def test_email_endpoint():
     return True
 
 
+def test_qa_agent_matching():
+    """Agent name matching never guesses."""
+    from assignments import _match_agent_id
+    roster = [
+        {"agentId": 1, "firstName": "", "lastName": ""},          # blank name
+        {"agentId": 2, "firstName": "Alice", "lastName": "Brown"},
+        {"agentId": 3, "firstName": "Jane", "lastName": "A. Smith"},
+        {"agentId": 4, "firstName": "Chris", "lastName": "Lee"},
+        {"agentId": 5, "firstName": "Chris", "lastName": "Park"},
+    ]
+    assert _match_agent_id("Alice Brown", roster) == 2
+    assert _match_agent_id("  alice   BROWN ", roster) == 2
+    assert _match_agent_id("Jane Smith", roster) == 3          # middle initial
+    assert _match_agent_id("Al", roster) is None                # no partial words
+    assert _match_agent_id("Nobody Here", roster) is None       # not the blank agent
+    assert _match_agent_id("Chris", roster) is None             # ambiguous
+    assert _match_agent_id("", roster) is None
+    print("  [PASS] agent matching: exact, middle initial, no guessing")
+    print()
+    return True
+
+
+class _FakeCXone:
+    def __init__(self):
+        self.calls = []
+
+    def get_agents(self):
+        return [{"agentId": 7, "firstName": "Alice", "lastName": "Brown"}]
+
+    def get_completed_contacts(self, start, end):
+        self.calls.append((start, end))
+        return [
+            {"contactId": i, "agentId": 7, "mediaTypeName": "Email",
+             "totalDurationSeconds": 300, "contactStartDate": "2026-11-01T10:00:00Z"}
+            for i in range(10)
+        ]
+
+
+def test_qa_endpoints():
+    """Assignments validate input and include the end date in the CXone query."""
+    import assignments, metrics
+    os.environ.pop("BOT_API_KEY", None)
+    fake = _FakeCXone()
+    saved = (assignments.get_client, metrics.get_client)
+    assignments.get_client = metrics.get_client = lambda: fake
+    client = app.test_client()
+    try:
+        # Missing agentName → 400, not a crash
+        resp = client.post("/api/assignments/generate", json={
+            "evaluator_agents": [{"evaluatorName": "Eve"}],
+            "screening_due_date": "2026-11-14",
+        })
+        assert resp.status_code == 400, resp.status_code
+
+        resp = client.post("/api/assignments/generate", json={
+            "evaluator_agents": [{"evaluatorName": "Eve", "agentName": "Alice Brown"}],
+            "screening_due_date": "2026-11-14",
+            "interactions_per_agent": "abc",
+        })
+        assert resp.status_code == 400
+
+        resp = client.post("/api/assignments/generate", json={
+            "evaluator_agents": [{"evaluatorName": "Eve", "agentName": "Alice Brown"}],
+            "screening_due_date": "2026-11-14",
+            "interactions_per_agent": 5,
+        })
+        data = resp.get_json()
+        assert resp.status_code == 200, data
+        assert fake.calls[-1] == ("2026-10-31", "2026-11-15"), fake.calls[-1]
+        assert len(data["assignments"][0]["interactions"]) == 5
+        assert data["errors"] == []
+
+        resp = client.get("/api/metrics/productivity?startDate=2026-11-01&endDate=2026-11-03")
+        assert resp.status_code == 200
+        assert fake.calls[-1] == ("2026-11-01", "2026-11-04"), fake.calls[-1]
+        assert resp.get_json()["endDate"] == "2026-11-03"
+
+        resp = client.get("/api/metrics/productivity?startDate=2026-11-05&endDate=2026-11-03")
+        assert resp.status_code == 400
+    finally:
+        assignments.get_client, metrics.get_client = saved
+    print("  [PASS] assignments/metrics: input checks + end date included")
+    print()
+    return True
+
+
 def test_health():
     """Test health endpoint."""
     client = app.test_client()
@@ -180,7 +266,11 @@ if __name__ == "__main__":
     print("━━━ Health Check ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
     t4 = test_health()
 
-    if all([t1, t2, t3, t4, t5]):
+    print("━━━ QA Tools ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+    t6 = test_qa_agent_matching()
+    t7 = test_qa_endpoints()
+
+    if all([t1, t2, t3, t4, t5, t6, t7]):
         print("All tests passed! ✓")
         sys.exit(0)
     else:
