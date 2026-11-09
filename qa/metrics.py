@@ -9,16 +9,15 @@ Endpoints:
   GET /api/metrics/unavailable?startDate=YYYY-MM-DD&endDate=YYYY-MM-DD
 """
 
-import hmac
-import os
 import logging
 from datetime import datetime, timedelta
 from collections import defaultdict
 
 from flask import Blueprint, request, jsonify
 from cxone_client import get_client
+from auth import require_auth
 
-log = logging.getLogger("cxone-bot")
+log = logging.getLogger("qa-service")
 
 metrics_bp = Blueprint("metrics", __name__, url_prefix="/api/metrics")
 
@@ -39,14 +38,6 @@ MEDIA_TYPE_MAP = {
 }
 
 
-def _check_auth() -> bool:
-    expected_key = os.getenv("BOT_API_KEY", "")
-    if not expected_key:
-        return True
-    provided = request.headers.get("X-API-Key", "") or request.args.get("api_key", "")
-    return hmac.compare_digest(expected_key, provided)
-
-
 def _map_channel(contact: dict) -> str | None:
     name = str(contact.get("mediaTypeName", "")).lower().strip()
     if name in MEDIA_TYPE_MAP:
@@ -64,12 +55,56 @@ def _parse_date_range(default_days: int = 7):
         if not start_str
         else datetime.strptime(start_str, "%Y-%m-%d")
     )
+    if start > end:
+        raise ValueError("startDate is after endDate")
     return start.strftime("%Y-%m-%d"), end.strftime("%Y-%m-%d")
+
+
+def _query_end(end_date: str) -> str:
+    """CXone treats a date-only endDate as midnight at the START of that day.
+    Ask for the following day so the chosen end date is included."""
+    return (datetime.strptime(end_date, "%Y-%m-%d") + timedelta(days=1)).strftime("%Y-%m-%d")
+
+
+# ── Agent roster endpoint ──────────────────────────────────────────
+
+@metrics_bp.route("/agents", methods=["GET"])
+@require_auth
+def agents():
+    """
+    Active CXone agents for the QA web page's agent picker.
+    Returns {"agents": [{"agentId", "name", "email"}]} sorted by name.
+    Agents with no name, and agents CXone marks inactive, are left out.
+    """
+    try:
+        roster = get_client().get_agents()
+    except Exception as e:
+        log.error(f"[AGENTS] CXone fetch failed: {e}")
+        return jsonify({"error": "CXone agent roster unavailable"}), 502
+
+    result = []
+    for a in roster:
+        if a.get("isActive") is False:
+            continue
+        name = " ".join(
+            f"{a.get('firstName', '') or ''} {a.get('lastName', '') or ''}".split()
+        )
+        agent_id = a.get("agentId") or a.get("id")
+        if not name or agent_id is None:
+            continue
+        result.append({
+            "agentId": agent_id,
+            "name": name,
+            "email": a.get("emailAddress") or a.get("email") or "",
+        })
+    result.sort(key=lambda a: a["name"].lower())
+    return jsonify({"agents": result})
 
 
 # ── Productivity endpoint ──────────────────────────────────────────
 
 @metrics_bp.route("/productivity", methods=["GET"])
+@require_auth
 def productivity():
     """
     Return per-agent productivity metrics from completed contacts.
@@ -81,9 +116,6 @@ def productivity():
       - avgHandleSeconds
       - refusedCount
     """
-    if not _check_auth():
-        return jsonify({"error": "Unauthorized"}), 401
-
     try:
         start_date, end_date = _parse_date_range(default_days=7)
     except ValueError as e:
@@ -91,7 +123,7 @@ def productivity():
 
     try:
         client = get_client()
-        contacts = client.get_completed_contacts(start_date, end_date)
+        contacts = client.get_completed_contacts(start_date, _query_end(end_date))
         agents = client.get_agents()
     except Exception as e:
         return jsonify({"error": f"CXone fetch failed: {e}"}), 502
@@ -172,15 +204,13 @@ UNAVAILABLE_STATES = {
 
 
 @metrics_bp.route("/unavailable", methods=["GET"])
+@require_auth
 def unavailable_time():
     """
     Return per-agent unavailable-time totals for the date range.
     Uses CXone agent state history. If the state history endpoint
     isn't available on this tenant, returns an empty array with a note.
     """
-    if not _check_auth():
-        return jsonify({"error": "Unauthorized"}), 401
-
     try:
         start_date, end_date = _parse_date_range(default_days=7)
     except ValueError as e:
@@ -188,7 +218,7 @@ def unavailable_time():
 
     try:
         client = get_client()
-        states = client.get_agent_states_history(start_date, end_date)
+        states = client.get_agent_states_history(start_date, _query_end(end_date))
     except AttributeError:
         # Method not implemented on the client yet
         return jsonify({

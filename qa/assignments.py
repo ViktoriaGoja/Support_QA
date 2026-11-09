@@ -11,21 +11,17 @@ import random
 from datetime import datetime, timedelta
 from flask import Blueprint, request, jsonify
 from cxone_client import get_client
+from auth import require_auth
 
-log = logging.getLogger("cxone-bot")
+log = logging.getLogger("qa-service")
 
 assignments_bp = Blueprint("assignments", __name__, url_prefix="/api/assignments")
 
 
 @assignments_bp.route("/debug-contacts", methods=["GET"])
+@require_auth
 def debug_contacts():
     """Return a sample of raw CXone contacts to inspect field names."""
-    import hmac, os
-    expected_key = os.getenv("BOT_API_KEY", "")
-    if expected_key:
-        provided = request.headers.get("X-API-Key", "") or request.args.get("api_key", "")
-        if not hmac.compare_digest(expected_key, provided):
-            return jsonify({"error": "Unauthorized"}), 401
     try:
         client = get_client()
         end = datetime.utcnow()
@@ -97,21 +93,42 @@ def _format_duration(seconds: int) -> str:
     return f"{m}m {s:02d}s"
 
 
+def _agent_full_name(agent: dict) -> str:
+    return " ".join(
+        f"{agent.get('firstName', '') or ''} {agent.get('lastName', '') or ''}".lower().split()
+    )
+
+
 def _match_agent_id(agent_name: str, cxone_agents: list) -> int | None:
     """
     Match an agent display name to a CXone agent ID.
-    Tries exact match first, then case-insensitive partial match.
+
+    1. Exact full-name match (case/whitespace-insensitive).
+    2. Otherwise, every word typed must appear as a whole word in exactly
+       one CXone agent's name (e.g. "Jane Smith" matches "Jane A. Smith").
+       Agents with blank names are ignored, and a partial word never
+       matches ("Al" does not match "Alice"). If more than one agent
+       matches, returns None rather than guessing.
     """
-    name_lower = agent_name.strip().lower()
-    for agent in cxone_agents:
-        full_name = f"{agent.get('firstName', '')} {agent.get('lastName', '')}".strip().lower()
-        if full_name == name_lower:
-            return agent.get("agentId")
-    # Fuzzy: check if the search name is contained in or contains the CXone name
-    for agent in cxone_agents:
-        full_name = f"{agent.get('firstName', '')} {agent.get('lastName', '')}".strip().lower()
-        if name_lower in full_name or full_name in name_lower:
-            return agent.get("agentId")
+    wanted = " ".join(agent_name.lower().split())
+    if not wanted:
+        return None
+    named = [(a, _agent_full_name(a)) for a in cxone_agents]
+    named = [(a, n) for a, n in named if n]
+
+    exact = [a for a, n in named if n == wanted]
+    if len(exact) == 1:
+        return exact[0].get("agentId")
+    if len(exact) > 1:
+        return None
+
+    wanted_words = set(wanted.replace(".", "").split())
+    partial = [
+        a for a, n in named
+        if wanted_words <= set(n.replace(".", "").split())
+    ]
+    if len(partial) == 1:
+        return partial[0].get("agentId")
     return None
 
 
@@ -153,6 +170,7 @@ def _select_interactions(contacts: list, count: int = 5) -> list:
 # ── Main endpoint ───────────────────────────────────────────────
 
 @assignments_bp.route("/generate", methods=["POST"])
+@require_auth
 def generate_assignments():
     """
     Generate QA assignments for the given evaluator-agent pairs.
@@ -166,25 +184,31 @@ def generate_assignments():
       "interactions_per_agent": 5
     }
     """
-    # Auth check
-    import hmac, os
-    expected_key = os.getenv("BOT_API_KEY", "")
-    if expected_key:
-        provided = request.headers.get("X-API-Key", "") or request.args.get("api_key", "")
-        if not hmac.compare_digest(expected_key, provided):
-            return jsonify({"error": "Unauthorized"}), 401
-
-    try:
-        body = request.get_json(force=True)
-    except Exception:
+    body = request.get_json(force=True, silent=True)
+    if not isinstance(body, dict):
         return jsonify({"error": "Invalid JSON"}), 400
 
     evaluator_agents = body.get("evaluator_agents", [])
     due_date_str = body.get("screening_due_date", "")
     per_agent = body.get("interactions_per_agent", 5)
 
-    if not evaluator_agents:
+    if not evaluator_agents or not isinstance(evaluator_agents, list):
         return jsonify({"error": "evaluator_agents is required"}), 400
+    for i, ea in enumerate(evaluator_agents, start=1):
+        if (
+            not isinstance(ea, dict)
+            or not str(ea.get("agentName") or "").strip()
+            or not str(ea.get("evaluatorName") or "").strip()
+        ):
+            return jsonify({
+                "error": f"evaluator_agents row {i} needs both agentName and evaluatorName"
+            }), 400
+    try:
+        per_agent = int(per_agent)
+    except (TypeError, ValueError):
+        return jsonify({"error": "interactions_per_agent must be a number"}), 400
+    if not 1 <= per_agent <= 50:
+        return jsonify({"error": "interactions_per_agent must be between 1 and 50"}), 400
     if not due_date_str:
         return jsonify({"error": "screening_due_date is required"}), 400
 
@@ -193,10 +217,12 @@ def generate_assignments():
     except ValueError:
         return jsonify({"error": "screening_due_date must be YYYY-MM-DD"}), 400
 
-    # Date range: due_date - 15 days to due_date
-    # Pull contacts from the last 2 weeks only
+    # Pull contacts from the 2 weeks up to and including the due date.
+    # CXone treats a date-only endDate as midnight at the START of that day,
+    # so ask for the day after to include the due date itself.
     start_date = (due_date - timedelta(days=14)).strftime("%Y-%m-%d")
     end_date = due_date.strftime("%Y-%m-%d")
+    query_end_date = (due_date + timedelta(days=1)).strftime("%Y-%m-%d")
 
     # Week of (Monday of the due date week)
     week_of = (due_date - timedelta(days=due_date.weekday())).strftime("%Y-%m-%d")
@@ -217,7 +243,7 @@ def generate_assignments():
 
     # 2. Resolve agent CXone IDs
     agent_ids = {}
-    unique_agents = {ea["agentName"] for ea in evaluator_agents}
+    unique_agents = {ea["agentName"] for ea in evaluator_agents}  # validated above
     for agent_name in unique_agents:
         # Check if any entry provides a CXone ID
         provided_id = None
@@ -232,11 +258,14 @@ def generate_assignments():
             if resolved:
                 agent_ids[agent_name] = resolved
             else:
-                errors.append(f"Agent '{agent_name}' not found in CXone")
+                errors.append(
+                    f"Agent '{agent_name}' not found in CXone, or the name matches "
+                    f"more than one agent. Use the full name or add agentCxoneId."
+                )
 
     # 3. Fetch completed contacts
     try:
-        all_contacts = client.get_completed_contacts(start_date, end_date)
+        all_contacts = client.get_completed_contacts(start_date, query_end_date)
         log.info(f"Fetched {len(all_contacts)} completed contacts")
     except Exception as e:
         log.error(f"Failed to fetch completed contacts: {e}")

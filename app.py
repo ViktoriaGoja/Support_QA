@@ -34,8 +34,6 @@ else:
     find_email_answer = None
     _engine = "keyword"
 
-from cxone_client import get_client
-
 # ── Logging ──────────────────────────────────────────────────────
 logging.basicConfig(
     level=logging.INFO,
@@ -51,13 +49,19 @@ CORS(app, origins=[
 ])
 log.info(f"Using engine: {_engine}")
 
-# Register assignments blueprint
-from assignments import assignments_bp
-app.register_blueprint(assignments_bp)
+# The QA assignments/metrics tools now run as a separate service in qa/
+# (own Render service, own QA_API_KEY). Nothing here depends on them.
 
-# Register metrics blueprint
-from metrics import metrics_bp
-app.register_blueprint(metrics_bp)
+
+# ── Auto-reply switch ────────────────────────────────────────────
+def _auto_reply_enabled() -> bool:
+    """Auto-replies are OFF unless AUTO_REPLY_ENABLED is explicitly true.
+    When off, every chat/email is escalated to a human agent and Claude is
+    never called. Logging, the dashboard, and the QA tools keep working."""
+    return os.getenv("AUTO_REPLY_ENABLED", "").strip().lower() in ("1", "true", "yes", "on")
+
+
+AUTO_REPLY_OFF_REASON = "Auto-reply disabled (AUTO_REPLY_ENABLED is off) — routed to agent"
 
 
 # ── Auth helper ──────────────────────────────────────────────────
@@ -124,6 +128,10 @@ def handle_chat():
 
     if not message:
         return jsonify({"reply": "", "escalate": False, "confidence": 0})
+
+    if not _auto_reply_enabled():
+        log.info(f"[CHAT {contact_id}] Auto-reply disabled — escalating")
+        return jsonify({"reply": "", "escalate": True, "confidence": 0})
 
     result = find_answer(message)
     log.info(
@@ -239,15 +247,6 @@ def handle_email():
     if not _check_api_key():
         return jsonify({"error": "unauthorized"}), 401
 
-    if find_email_answer is None:
-        return jsonify({
-            "reply": "",
-            "escalate": True,
-            "confidence": 0,
-            "subject": "",
-            "error": "Email handling requires ANTHROPIC_API_KEY",
-        })
-
     # Parse JSON defensively — if Studio sends malformed JSON (e.g.
     # because an email body contains quotes/newlines), log what we got
     # and escalate to a human rather than returning 400.
@@ -290,6 +289,22 @@ def handle_email():
             "escalate": True,
             "confidence": 0,
             "subject": f"Re: {subject}",
+            "state": state,
+        })
+
+    if not _auto_reply_enabled() or find_email_answer is None:
+        reason = (
+            AUTO_REPLY_OFF_REASON if not _auto_reply_enabled()
+            else "No ANTHROPIC_API_KEY configured — routed to agent"
+        )
+        log.info(f"[EMAIL {contact_id}] {reason}")
+        _save_email_log(contact_id, sender, subject, body, "", True, False, reason, state=state)
+        return jsonify({
+            "reply": "",
+            "escalate": True,
+            "confidence": 0,
+            "subject": f"Re: {subject}",
+            "spam": False,
             "state": state,
         })
 
@@ -341,6 +356,9 @@ def cxone_webhook():
 
     if not customer_msg.strip():
         return jsonify({"replies": [], "escalate": False})
+
+    if not _auto_reply_enabled():
+        return jsonify({"replies": [], "escalate": True})
 
     result = find_answer(customer_msg)
 
@@ -535,15 +553,10 @@ def api_email_failed():
 # ── Health check ─────────────────────────────────────────────────
 @app.route("/health", methods=["GET"])
 def health():
-    cxone_ok = False
-    try:
-        cxone_ok = get_client().ping()
-    except Exception:
-        pass
     return jsonify({
         "status": "ok",
         "engine": _engine,
-        "cxone_connected": cxone_ok,
+        "auto_reply": _auto_reply_enabled(),
     })
 
 

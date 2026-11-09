@@ -19,7 +19,41 @@ services:
         value: claude-sonnet-4-20250514
       - key: BOT_API_KEY
         sync: false
+      # Auto-replies are OFF unless this is "true". When off, every email
+      # and chat is escalated to a human agent and Claude is never called.
+      - key: AUTO_REPLY_ENABLED
+        value: "false"
       - key: ESCALATION_PHRASE
         value: "[ESCALATE]"
       - key: FALLBACK_MESSAGE
         value: "I'm not sure I can help with that. Let me connect you with a team member."
+
+  # ── QA tools (assignments + agent metrics) ───────────────────────
+  # Completely separate from the bot above: own service, own key, no
+  # Claude. Suspending or redeploying the bot never affects it.
+  - type: web
+    name: tns-qa-service
+    runtime: python
+    rootDir: qa
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn app:app --bind 0.0.0.0:$PORT --workers 1 --threads 4 --worker-class gthread --timeout 120
+    healthCheckPath: /health
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.0
+      - key: QA_API_KEY
+        sync: false
+      # Microsoft sign-in used by the QA web page (qa-support-form).
+      # Same values as clientId / tenant in that repo's src/authConfig.js.
+      - key: MS_TENANT_ID
+        value: 0812948c-d8a4-4cd0-914e-59942e064343
+      - key: MS_CLIENT_ID
+        value: a575587c-9868-4fd7-8268-1556ac6308fb
+      - key: CXONE_ACCESS_KEY_ID
+        sync: false
+      - key: CXONE_ACCESS_KEY_SECRET
+        sync: false
+      - key: CXONE_TENANT_ID
+        sync: false
+      - key: CXONE_BASE_URL
+        value: https://api-na1.niceincontact.com
