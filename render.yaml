@@ -43,6 +43,12 @@ services:
         value: 3.12.0
       - key: QA_API_KEY
         sync: false
+      # Microsoft sign-in used by the QA web page (qa-support-form).
+      # Same values as clientId / tenant in that repo's src/authConfig.js.
+      - key: MS_TENANT_ID
+        value: 0812948c-d8a4-4cd0-914e-59942e064343
+      - key: MS_CLIENT_ID
+        value: a575587c-9868-4fd7-8268-1556ac6308fb
       - key: CXONE_ACCESS_KEY_ID
         sync: false
       - key: CXONE_ACCESS_KEY_SECRET

@@ -9,7 +9,7 @@ import sys
 TEST_KEY = "test-qa-key"
 os.environ["QA_API_KEY"] = TEST_KEY
 # The QA service must not depend on the bot's settings at all.
-for var in ("BOT_API_KEY", "ANTHROPIC_API_KEY"):
+for var in ("BOT_API_KEY", "ANTHROPIC_API_KEY", "MS_TENANT_ID", "MS_CLIENT_ID"):
     os.environ.pop(var, None)
 
 from app import app  # noqa: E402
@@ -21,6 +21,7 @@ def test_auth():
     url = "/api/metrics/productivity"
     assert client.get(url).status_code == 401
     assert client.get(url, headers={"X-API-Key": "wrong"}).status_code == 401
+    assert client.get(f"{url}?api_key={TEST_KEY}").status_code == 401  # header only
     assert client.post("/api/assignments/generate", json={}).status_code == 401
 
     os.environ.pop("QA_API_KEY")
@@ -32,6 +33,117 @@ def test_auth():
 
     assert client.get("/health").status_code == 200
     print("  [PASS] auth: wrong/missing key refused, unset key fails closed")
+    return True
+
+
+TENANT = "11111111-1111-1111-1111-111111111111"
+CLIENT = "22222222-2222-2222-2222-222222222222"
+
+
+def _make_signer():
+    """Fake Microsoft: an RSA key pair, plus a stand-in for the key lookup."""
+    import auth
+    from cryptography.hazmat.primitives.asymmetric import rsa
+
+    private = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+
+    class _Key:
+        key = private.public_key()
+
+    class _FakeJWKS:
+        def get_signing_key_from_jwt(self, token):
+            return _Key()
+
+    auth._jwks_clients[TENANT] = _FakeJWKS()
+    return private
+
+
+def _token(private, **overrides):
+    import time
+    import jwt
+    now = int(time.time())
+    claims = {
+        "aud": CLIENT,
+        "iss": f"https://login.microsoftonline.com/{TENANT}/v2.0",
+        "tid": TENANT,
+        "iat": now,
+        "exp": now + 3600,
+        "preferred_username": "evaluator@example.com",
+    }
+    claims.update(overrides)
+    return jwt.encode(claims, private, algorithm="RS256")
+
+
+def test_microsoft_sign_in():
+    """The web page's Microsoft ID token is accepted only if it's ours and valid."""
+    import time
+    import jwt
+    from cryptography.hazmat.primitives.asymmetric import rsa
+
+    private = _make_signer()
+    os.environ["MS_TENANT_ID"] = TENANT
+    os.environ["MS_CLIENT_ID"] = CLIENT
+    saved_key = os.environ.pop("QA_API_KEY")
+    try:
+        client = app.test_client()
+        url = "/api/metrics/productivity?startDate=2026-11-01&endDate=2026-11-01"
+
+        def call(token):
+            return client.get(url, headers={"Authorization": f"Bearer {token}"}).status_code
+
+        import metrics
+        saved_client = metrics.get_client
+        metrics.get_client = lambda: _FakeCXone()
+        try:
+            assert call(_token(private)) == 200
+        finally:
+            metrics.get_client = saved_client
+
+        assert call(_token(private, aud="some-other-app")) == 401
+        assert call(_token(private, iss="https://login.microsoftonline.com/other/v2.0")) == 401
+        assert call(_token(private, tid="other-tenant")) == 401
+        assert call(_token(private, exp=int(time.time()) - 3600)) == 401
+        other = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+        assert call(jwt.encode(jwt.decode(_token(private), options={"verify_signature": False}),
+                               other, algorithm="RS256")) == 401          # forged signature
+        assert call("not-a-token") == 401
+        assert client.get(url).status_code == 401                            # no sign-in
+
+        health = client.get("/health").get_json()
+        assert health["auth"] == {"microsoft": True, "api_key": False}
+    finally:
+        os.environ["QA_API_KEY"] = saved_key
+        os.environ.pop("MS_TENANT_ID", None)
+        os.environ.pop("MS_CLIENT_ID", None)
+    print("  [PASS] Microsoft sign-in: valid accepted; wrong app/tenant, expired, forged refused")
+    return True
+
+
+def test_agents_endpoint():
+    """Agent picker gets active, named agents only, sorted by name."""
+    import metrics
+
+    class _Roster:
+        def get_agents(self):
+            return [
+                {"agentId": 1, "firstName": "", "lastName": ""},
+                {"agentId": 2, "firstName": "zoe", "lastName": "Adams", "emailAddress": "z@x.com"},
+                {"agentId": 3, "firstName": "Bob", "lastName": "Lee", "isActive": False},
+                {"agentId": 4, "firstName": "Ann", "lastName": " Park "},
+            ]
+
+    saved = metrics.get_client
+    metrics.get_client = lambda: _Roster()
+    try:
+        resp = app.test_client().get("/api/metrics/agents", headers={"X-API-Key": TEST_KEY})
+        assert resp.status_code == 200
+        assert resp.get_json()["agents"] == [
+            {"agentId": 4, "name": "Ann Park", "email": ""},
+            {"agentId": 2, "name": "zoe Adams", "email": "z@x.com"},
+        ]
+    finally:
+        metrics.get_client = saved
+    print("  [PASS] /api/metrics/agents: active named agents, sorted")
     return True
 
 
@@ -133,6 +245,8 @@ if __name__ == "__main__":
         test_auth(),
         test_qa_agent_matching(),
         test_qa_endpoints(),
+        test_microsoft_sign_in(),
+        test_agents_endpoint(),
     ]
     if all(results):
         print("\nAll QA tests passed! ✓")

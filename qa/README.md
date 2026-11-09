@@ -14,14 +14,24 @@ root:
 
 ## Endpoints
 
-All endpoints except `/health` require the `X-API-Key: <QA_API_KEY>` header.
-If `QA_API_KEY` isn't set on the server, every request is refused with a 503
-("fails closed").
+Every endpoint except `/health` needs one of two kinds of sign-in:
+
+- **Microsoft sign-in (used by the QA web page).** The page sends the
+  signed-in person's Microsoft ID token as `Authorization: Bearer <token>`.
+  The service checks it was issued by the company's Microsoft tenant
+  (`MS_TENANT_ID`) for the QA page's app (`MS_CLIENT_ID`) and hasn't expired.
+  No secret is stored in the page.
+- **`X-API-Key: <QA_API_KEY>` (scripts and manual testing only).** Never
+  put this key in the web page, because anything in a public page can be
+  read by anyone.
+
+If neither is configured, every request gets a 503 ("fails closed").
 
 | Method | Path | What it does |
 |---|---|---|
 | POST | `/api/assignments/generate` | Builds QA assignments for evaluator–agent pairs |
 | GET | `/api/assignments/debug-contacts` | Sample of raw CXone contact fields |
+| GET | `/api/metrics/agents` | Active CXone agents for the agent picker |
 | GET | `/api/metrics/productivity?startDate=&endDate=` | Contacts by channel, handle time, refused contacts |
 | GET | `/api/metrics/unavailable?startDate=&endDate=` | Unavailable time by reason |
 | GET | `/health` | Liveness check; doesn't call CXone |
@@ -43,10 +53,12 @@ python test_qa.py      # tests; no CXone access needed
    Otherwise create it by hand: **New → Web Service**, choose this repo, and
    set Root Directory to `qa`. Use the build and start commands from
    `render.yaml`.
-2. Set `QA_API_KEY` to a new long random value, not the bot's key. Set the
-   CXone access key ID, secret and tenant ID.
-3. In the QA web page, point the API address at the new service URL and
-   send the new key.
+2. Set `MS_TENANT_ID` and `MS_CLIENT_ID` to the same values as `tenant` and
+   `clientId` in the web page's `src/authConfig.js`. Set the CXone access key
+   ID, secret and tenant ID. `QA_API_KEY` is optional and only needed for
+   scripts.
+3. In the QA web page, point the API address at the new service URL. The
+   page sends the Microsoft sign-in automatically.
 
 Use the paid always-on instance for this service. On the free tier it goes to
 sleep after 15 minutes idle and wakes up slowly.

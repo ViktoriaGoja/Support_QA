@@ -66,6 +66,41 @@ def _query_end(end_date: str) -> str:
     return (datetime.strptime(end_date, "%Y-%m-%d") + timedelta(days=1)).strftime("%Y-%m-%d")
 
 
+# ── Agent roster endpoint ──────────────────────────────────────────
+
+@metrics_bp.route("/agents", methods=["GET"])
+@require_auth
+def agents():
+    """
+    Active CXone agents for the QA web page's agent picker.
+    Returns {"agents": [{"agentId", "name", "email"}]} sorted by name.
+    Agents with no name, and agents CXone marks inactive, are left out.
+    """
+    try:
+        roster = get_client().get_agents()
+    except Exception as e:
+        log.error(f"[AGENTS] CXone fetch failed: {e}")
+        return jsonify({"error": "CXone agent roster unavailable"}), 502
+
+    result = []
+    for a in roster:
+        if a.get("isActive") is False:
+            continue
+        name = " ".join(
+            f"{a.get('firstName', '') or ''} {a.get('lastName', '') or ''}".split()
+        )
+        agent_id = a.get("agentId") or a.get("id")
+        if not name or agent_id is None:
+            continue
+        result.append({
+            "agentId": agent_id,
+            "name": name,
+            "email": a.get("emailAddress") or a.get("email") or "",
+        })
+    result.sort(key=lambda a: a["name"].lower())
+    return jsonify({"agents": result})
+
+
 # ── Productivity endpoint ──────────────────────────────────────────
 
 @metrics_bp.route("/productivity", methods=["GET"])

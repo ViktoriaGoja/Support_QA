@@ -9,6 +9,7 @@ suspending or redeploying the bot never affects it.
 Endpoints:
   POST /api/assignments/generate      – weekly QA screening assignments
   GET  /api/assignments/debug-contacts – sample CXone contact fields
+  GET  /api/metrics/agents             – active CXone agents (agent picker)
   GET  /api/metrics/productivity       – per-agent productivity
   GET  /api/metrics/unavailable        – per-agent unavailable time
   GET  /health                         – health check (no auth)
@@ -20,6 +21,8 @@ import os
 from dotenv import load_dotenv
 from flask import Flask, jsonify
 from flask_cors import CORS
+
+from auth import auth_methods_configured
 
 load_dotenv()
 
@@ -49,7 +52,8 @@ def health():
     return jsonify({
         "status": "ok",
         "service": "qa",
-        "auth_configured": bool(os.getenv("QA_API_KEY")),
+        "auth_configured": any(auth_methods_configured().values()),
+        "auth": auth_methods_configured(),
     })
 
 
