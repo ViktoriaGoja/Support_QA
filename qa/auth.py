@@ -83,7 +83,23 @@ def auth_methods_configured() -> dict:
     }
 
 
+def manager_emails() -> set[str]:
+    """QA_MANAGER_EMAILS: comma-separated emails of people who can edit any
+    screening, manage teams and evaluator pairings, and run the import."""
+    raw = os.getenv("QA_MANAGER_EMAILS", "")
+    return {e.strip().lower() for e in raw.split(",") if e.strip()}
+
+
+def current_user() -> dict:
+    """The signed-in person for this request (set by require_auth)."""
+    return g.qa_user
+
+
 def require_auth(view):
+    """Sets g.qa_user = {"email", "name", "is_manager", "via"}.
+
+    Microsoft sign-in identifies a person. The API key identifies a script,
+    which may only read (see require_person)."""
     @wraps(view)
     def wrapped(*args, **kwargs):
         methods = auth_methods_configured()
@@ -94,12 +110,37 @@ def require_auth(view):
         if methods["microsoft"] and header.lower().startswith("bearer "):
             claims = verify_microsoft_token(header[7:].strip())
             if claims:
-                g.qa_user = claims.get("preferred_username") or claims.get("oid", "")
+                email = (claims.get("preferred_username") or claims.get("email") or "").strip()
+                g.qa_user = {
+                    "email": email,
+                    "name": (claims.get("name") or email).strip(),
+                    "is_manager": email.lower() in manager_emails(),
+                    "via": "microsoft",
+                }
                 return view(*args, **kwargs)
             return jsonify({"error": "Sign-in expired or not valid — sign in again"}), 401
 
         if _api_key_ok():
-            g.qa_user = "api-key"
+            g.qa_user = {"email": "", "name": "api-key", "is_manager": False, "via": "api-key"}
             return view(*args, **kwargs)
         return jsonify({"error": "Unauthorized"}), 401
+    return wrapped
+
+
+def require_person(view):
+    """Writes need a signed-in person (an API key can only read)."""
+    @wraps(view)
+    def wrapped(*args, **kwargs):
+        if g.qa_user.get("via") != "microsoft" or not g.qa_user.get("email"):
+            return jsonify({"error": "Sign in with Microsoft to make changes"}), 403
+        return view(*args, **kwargs)
+    return wrapped
+
+
+def require_manager(view):
+    @wraps(view)
+    def wrapped(*args, **kwargs):
+        if not g.qa_user.get("is_manager"):
+            return jsonify({"error": "Only managers can do this"}), 403
+        return view(*args, **kwargs)
     return wrapped
