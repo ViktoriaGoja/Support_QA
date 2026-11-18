@@ -57,3 +57,23 @@ services:
         sync: false
       - key: CXONE_BASE_URL
         value: https://api-na1.niceincontact.com
+      # QA data (screenings, edits, assignments, teams). From the database below.
+      - key: DATABASE_URL
+        fromDatabase:
+          name: tns-qa-db
+          property: connectionString
+      # Comma-separated emails of managers (edit any screening, manage teams,
+      # run the SharePoint import). Set in the Render dashboard.
+      - key: QA_MANAGER_EMAILS
+        sync: false
+      # Call recordings are stored on the persistent disk below.
+      - key: QA_ATTACHMENT_DIR
+        value: /var/data/attachments
+    disk:
+      name: qa-attachments
+      mountPath: /var/data
+      sizeGB: 10
+
+databases:
+  - name: tns-qa-db
+    plan: basic-256mb

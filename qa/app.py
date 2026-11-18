@@ -12,6 +12,9 @@ Endpoints:
   GET  /api/metrics/agents             – active CXone agents (agent picker)
   GET  /api/metrics/productivity       – per-agent productivity
   GET  /api/metrics/unavailable        – per-agent unavailable time
+  /api/me, /api/screenings, /api/agents, /api/evaluator-pairs,
+  /api/assignments, /api/attachments, /api/import/sharepoint
+                                       – QA data (see store.py)
   GET  /health                         – health check (no auth)
 """
 
@@ -22,6 +25,7 @@ from dotenv import load_dotenv
 from flask import Flask, jsonify
 from flask_cors import CORS
 
+import db
 from auth import auth_methods_configured
 
 load_dotenv()
@@ -39,11 +43,24 @@ CORS(app, origins=[
     "http://localhost:3000",
 ])
 
+# Call recordings can be large; reject anything bigger before reading it.
+app.config["MAX_CONTENT_LENGTH"] = 110 * 1024 * 1024
+
 from assignments import assignments_bp  # noqa: E402
 from metrics import metrics_bp  # noqa: E402
+from store import store_bp  # noqa: E402
 
 app.register_blueprint(assignments_bp)
 app.register_blueprint(metrics_bp)
+app.register_blueprint(store_bp)
+
+_db_ready = False
+if db.configured():
+    try:
+        db.migrate()
+        _db_ready = True
+    except Exception as exc:  # keep the CXone tools up even if the DB is down
+        log.error(f"[DB] migration failed: {type(exc).__name__}: {exc}")
 
 
 @app.route("/health", methods=["GET"])
@@ -54,6 +71,8 @@ def health():
         "service": "qa",
         "auth_configured": any(auth_methods_configured().values()),
         "auth": auth_methods_configured(),
+        "database": "ready" if _db_ready else ("error" if db.configured() else "not configured"),
+        "attachments": bool(os.getenv("QA_ATTACHMENT_DIR")),
     })
 
 
