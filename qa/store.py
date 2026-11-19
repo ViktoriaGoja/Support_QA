@@ -12,8 +12,10 @@ from datetime import date, datetime, timedelta, timezone
 from functools import wraps
 from pathlib import Path
 
+import psycopg
 from flask import Blueprint, jsonify, request, send_file
 from psycopg.types.json import Jsonb
+from psycopg_pool import PoolTimeout
 
 import db
 from auth import current_user, require_auth, require_manager, require_person
@@ -45,10 +47,18 @@ def require_db(view):
     def wrapped(*args, **kwargs):
         if not db.configured():
             return jsonify({"error": "QA database is not configured (DATABASE_URL)"}), 503
+        if not db.ensure_schema():
+            return jsonify({
+                "error": "Can't reach the QA database. Check DATABASE_URL on the QA service "
+                         f"in Render ({db.status().get('database_error')})."
+            }), 503
         try:
             return view(*args, **kwargs)
         except (BadRequest, ScorecardError) as exc:
             return jsonify({"error": str(exc)}), 400
+        except (psycopg.OperationalError, PoolTimeout) as exc:
+            log.error(f"[DB] {request.method} {request.path}: {type(exc).__name__}: {exc}")
+            return jsonify({"error": "The QA database isn't responding. Try again in a minute."}), 503
     return wrapped
 
 
