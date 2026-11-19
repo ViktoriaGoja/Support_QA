@@ -7,6 +7,7 @@ storage endpoints answer 503 with a clear message.
 
 import logging
 import os
+import threading
 from contextlib import contextmanager
 from pathlib import Path
 
@@ -17,6 +18,11 @@ log = logging.getLogger("qa-service")
 
 _pool: ConnectionPool | None = None
 _SCHEMA = Path(__file__).parent / "schema.sql"
+
+# Whether schema.sql has been applied in this process, and why it last failed.
+_schema_ready = False
+_schema_error: str | None = None
+_schema_lock = threading.Lock()
 
 
 def configured() -> bool:
@@ -32,6 +38,8 @@ def _get_pool() -> ConnectionPool:
             max_size=8,
             kwargs={"row_factory": dict_row},
             open=True,
+            # Fail a request after 10s instead of hanging when the DB is down
+            timeout=10,
         )
     return _pool
 
@@ -50,6 +58,35 @@ def migrate() -> None:
     with connection() as conn:
         conn.execute(_SCHEMA.read_text(encoding="utf-8"))
     log.info("[DB] schema up to date")
+
+
+def ensure_schema() -> bool:
+    """Apply the schema once per process. If the database wasn't reachable
+    at startup, this retries on later requests instead of leaving the
+    service without tables until the next deploy."""
+    global _schema_ready, _schema_error
+    if _schema_ready:
+        return True
+    with _schema_lock:
+        if _schema_ready:
+            return True
+        try:
+            migrate()
+            _schema_ready, _schema_error = True, None
+        except Exception as exc:
+            # Type only: messages can include the database host.
+            _schema_error = type(exc).__name__
+            log.error(f"[DB] schema setup failed: {type(exc).__name__}: {exc}")
+    return _schema_ready
+
+
+def status() -> dict:
+    """For /health: 'ready', 'error' (with the error type) or 'not configured'."""
+    if not configured():
+        return {"database": "not configured"}
+    if _schema_ready:
+        return {"database": "ready"}
+    return {"database": "error", "database_error": _schema_error or "not connected yet"}
 
 
 def close() -> None:

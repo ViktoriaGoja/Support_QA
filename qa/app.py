@@ -54,13 +54,10 @@ app.register_blueprint(assignments_bp)
 app.register_blueprint(metrics_bp)
 app.register_blueprint(store_bp)
 
-_db_ready = False
+# Create the tables now if the database is reachable. If it isn't, the CXone
+# tools still work and the first data request retries (db.ensure_schema).
 if db.configured():
-    try:
-        db.migrate()
-        _db_ready = True
-    except Exception as exc:  # keep the CXone tools up even if the DB is down
-        log.error(f"[DB] migration failed: {type(exc).__name__}: {exc}")
+    db.ensure_schema()
 
 
 @app.route("/health", methods=["GET"])
@@ -71,7 +68,7 @@ def health():
         "service": "qa",
         "auth_configured": any(auth_methods_configured().values()),
         "auth": auth_methods_configured(),
-        "database": "ready" if _db_ready else ("error" if db.configured() else "not configured"),
+        **db.status(),
         "attachments": bool(os.getenv("QA_ATTACHMENT_DIR")),
     })
 
