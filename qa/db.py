@@ -40,6 +40,12 @@ def _get_pool() -> ConnectionPool:
             open=True,
             # Fail a request after 10s instead of hanging when the DB is down
             timeout=10,
+            # Render's Postgres closes idle connections. Test each connection
+            # before handing it out (a dead one is replaced, not used), and
+            # retire connections before the server would drop them.
+            check=ConnectionPool.check_connection,
+            max_idle=120,
+            max_lifetime=1800,
         )
     return _pool
 
