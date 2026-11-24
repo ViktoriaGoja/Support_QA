@@ -98,7 +98,7 @@ def new_screening(h=EVAL_A, **extra):
 def test_health_reports_database():
     data = client.get("/health").get_json()
     assert data["database"] == "ready", data
-    assert data["database_check"] == "ok" and data["pool"]["pool_size"] >= 1, data
+    assert data["database_check"] == "ok" and data["connections_open"] == 0, data
     assert data["attachments"] is True
     print("  [PASS] /health: database ready, attachments configured")
 

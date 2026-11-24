@@ -15,7 +15,6 @@ from pathlib import Path
 import psycopg
 from flask import Blueprint, jsonify, request, send_file
 from psycopg.types.json import Jsonb
-from psycopg_pool import PoolTimeout
 
 import db
 from auth import current_user, require_auth, require_manager, require_person
@@ -56,7 +55,7 @@ def require_db(view):
             return view(*args, **kwargs)
         except (BadRequest, ScorecardError) as exc:
             return jsonify({"error": str(exc)}), 400
-        except (psycopg.OperationalError, PoolTimeout) as exc:
+        except psycopg.OperationalError as exc:
             log.error(f"[DB] {request.method} {request.path}: {type(exc).__name__}: {exc}")
             # The error type (never its message, which can include the host)
             # lets staff report exactly what went wrong.
