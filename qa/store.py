@@ -58,7 +58,12 @@ def require_db(view):
             return jsonify({"error": str(exc)}), 400
         except (psycopg.OperationalError, PoolTimeout) as exc:
             log.error(f"[DB] {request.method} {request.path}: {type(exc).__name__}: {exc}")
-            return jsonify({"error": "The QA database isn't responding. Try again in a minute."}), 503
+            # The error type (never its message, which can include the host)
+            # lets staff report exactly what went wrong.
+            return jsonify({
+                "error": f"The QA database isn't responding ({type(exc).__name__}). Try again in a minute.",
+                "error_type": type(exc).__name__,
+            }), 503
     return wrapped
 
 
