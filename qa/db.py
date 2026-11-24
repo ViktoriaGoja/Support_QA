@@ -7,16 +7,17 @@ storage endpoints answer 503 with a clear message.
 
 import logging
 import os
+import socket
 import threading
+import time
 from contextlib import contextmanager
 from pathlib import Path
 
+import psycopg
 from psycopg.rows import dict_row
-from psycopg_pool import ConnectionPool
 
 log = logging.getLogger("qa-service")
 
-_pool: ConnectionPool | None = None
 _SCHEMA = Path(__file__).parent / "schema.sql"
 
 # Whether schema.sql has been applied in this process, and why it last failed.
@@ -24,59 +25,81 @@ _schema_ready = False
 _schema_error: str | None = None
 _schema_lock = threading.Lock()
 
+# Connections currently open (for /health).
+_open = 0
+_open_lock = threading.Lock()
+
 
 def configured() -> bool:
     return bool(os.getenv("DATABASE_URL", "").strip())
 
 
-def _get_pool() -> ConnectionPool:
-    global _pool
-    if _pool is None:
-        _pool = ConnectionPool(
-            os.environ["DATABASE_URL"],
-            min_size=1,
-            max_size=8,
-            kwargs={
-                "row_factory": dict_row,
-                # Never let one request hang or block others: give up on a
-                # statement after 20s or a lock wait after 10s, and have the
-                # server end any connection left mid-transaction for 60s
-                # (which releases the locks it held).
-                "options": "-c statement_timeout=20000 -c lock_timeout=10000 "
-                           "-c idle_in_transaction_session_timeout=60000",
-                # Render's network can drop an idle connection without telling
-                # either side; the next query on it then waits forever (this
-                # froze every pooled connection in production). Have the OS
-                # give up on a connection whose sent data isn't acknowledged
-                # within 10s, and probe idle connections so dead ones are
-                # found before a request needs them.
-                "connect_timeout": 10,
-                "tcp_user_timeout": 10000,
-                "keepalives": 1,
-                "keepalives_idle": 30,
-                "keepalives_interval": 10,
-                "keepalives_count": 3,
-            },
-            open=True,
-            # Fail a request after 10s instead of hanging when the DB is down
-            timeout=10,
-            # Render's Postgres closes idle connections. Test each connection
-            # before handing it out (a dead one is replaced, not used), and
-            # retire connections before the server would drop them.
-            check=ConnectionPool.check_connection,
-            max_idle=120,
-            max_lifetime=1800,
-        )
-    return _pool
+def _request_limit() -> float:
+    """Longest any request may hold a database connection (seconds)."""
+    try:
+        return float(os.getenv("QA_DB_REQUEST_LIMIT_SECONDS", "30"))
+    except ValueError:
+        return 30.0
+
+
+# No connection pool, on purpose. Render's network silently cut pooled
+# connections that sat idle, and the next request on one waited forever,
+# freezing the whole service twice, including after pre-use checks and TCP
+# timeouts were added (something in the path kept acknowledging the dead
+# connection). With a handful of users, opening a connection per request
+# costs a few milliseconds, and a connection that never sits idle can't be
+# cut while idle.
+_CONNECT_KWARGS = {
+    "row_factory": dict_row,
+    "connect_timeout": 10,
+    # Server side: give up on a statement after 20s or a lock wait after
+    # 10s, and end any connection left mid-transaction for 60s (releasing
+    # its locks).
+    "options": "-c statement_timeout=20000 -c lock_timeout=10000 "
+               "-c idle_in_transaction_session_timeout=60000",
+    # Client side: notice a dead network path where the OS can.
+    "tcp_user_timeout": 10000,
+    "keepalives": 1,
+    "keepalives_idle": 30,
+    "keepalives_interval": 10,
+    "keepalives_count": 3,
+}
+
+
+def _force_close(conn) -> None:
+    """Safety net: shut the connection's socket so a request stuck waiting
+    on the network returns with an error instead of hanging forever."""
+    try:
+        fd = conn.pgconn.socket
+        dup = socket.socket(fileno=os.dup(fd))
+        try:
+            dup.shutdown(socket.SHUT_RDWR)
+        finally:
+            dup.close()
+        log.error(f"[DB] request held a connection over {_request_limit():.0f}s; closed it")
+    except Exception as exc:  # already closed, etc.
+        log.info(f"[DB] watchdog close skipped: {type(exc).__name__}")
 
 
 @contextmanager
 def connection():
-    """A pooled connection inside a transaction: commits on success,
-    rolls back on any exception."""
-    with _get_pool().connection() as conn:
+    """A fresh connection inside a transaction: commits on success, rolls
+    back on any exception, and is always closed afterwards."""
+    global _open
+    conn = psycopg.connect(os.environ["DATABASE_URL"], **_CONNECT_KWARGS)
+    watchdog = threading.Timer(_request_limit(), _force_close, args=(conn,))
+    watchdog.daemon = True
+    with _open_lock:
+        _open += 1
+    watchdog.start()
+    try:
         with conn.transaction():
             yield conn
+    finally:
+        watchdog.cancel()
+        with _open_lock:
+            _open -= 1
+        conn.close()
 
 
 def migrate() -> None:
@@ -116,13 +139,12 @@ def status() -> dict:
 
 
 def probe() -> dict:
-    """Run a trivial query through the pool right now. For /health, so the
+    """Run a trivial query on a fresh connection right now. For /health, so the
     page shows whether requests can reach the database at this moment (not
     just whether the tables were created at startup). Reports the error
     type only, never the message, which can include the host."""
     if not configured():
         return {}
-    import time
     started = time.monotonic()
     try:
         with connection() as conn:
@@ -132,16 +154,10 @@ def probe() -> dict:
         log.error(f"[DB] health probe failed: {type(exc).__name__}: {exc}")
         out = {"database_check": "failed", "database_check_error": type(exc).__name__}
     out["database_check_ms"] = round((time.monotonic() - started) * 1000)
-    try:
-        stats = _get_pool().get_stats()
-        out["pool"] = {k: stats.get(k) for k in ("pool_size", "pool_available", "requests_waiting")}
-    except Exception:
-        pass
+    out["connections_open"] = _open
     return out
 
 
 def close() -> None:
-    global _pool
-    if _pool is not None:
-        _pool.close()
-        _pool = None
+    """Kept for callers and tests; connections are closed per request."""
+    return None
