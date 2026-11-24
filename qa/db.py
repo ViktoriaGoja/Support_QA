@@ -36,7 +36,15 @@ def _get_pool() -> ConnectionPool:
             os.environ["DATABASE_URL"],
             min_size=1,
             max_size=8,
-            kwargs={"row_factory": dict_row},
+            kwargs={
+                "row_factory": dict_row,
+                # Never let one request hang or block others: give up on a
+                # statement after 20s or a lock wait after 10s, and have the
+                # server end any connection left mid-transaction for 60s
+                # (which releases the locks it held).
+                "options": "-c statement_timeout=20000 -c lock_timeout=10000 "
+                           "-c idle_in_transaction_session_timeout=60000",
+            },
             open=True,
             # Fail a request after 10s instead of hanging when the DB is down
             timeout=10,
