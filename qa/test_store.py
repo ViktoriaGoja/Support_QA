@@ -213,6 +213,33 @@ def test_teams():
     print("  [PASS] teams: Internal Support defaults, manager-only changes, team filter")
 
 
+def test_remove_person():
+    """Removing a person: manager only, ends their pairings, keeps their
+    screenings (flagged agent_active false), and can be undone."""
+    new_screening(agentName="Levi Remove")
+    agent = next(a for a in client.get("/api/agents", headers=LEAD).get_json()["agents"]
+                 if a["name"] == "Levi Remove")
+    pair = client.post("/api/evaluator-pairs", headers=LEAD,
+                       json={"evaluatorName": "Eva Evaluator", "agentName": "Levi Remove"}).get_json()["id"]
+
+    assert client.put(f"/api/agents/{agent['id']}", json={"active": False}, headers=EVAL_A).status_code == 403
+    resp = client.put(f"/api/agents/{agent['id']}", json={"active": False}, headers=LEAD)
+    assert resp.status_code == 200 and resp.get_json()["active"] is False
+
+    pairs = client.get("/api/evaluator-pairs", headers=LEAD).get_json()["pairs"]
+    assert not any(p["id"] == pair for p in pairs)
+    rows = [s for s in client.get("/api/screenings", headers=LEAD).get_json()["screenings"]
+            if s["agent_name"] == "Levi Remove"]
+    assert rows and all(r["agent_active"] is False for r in rows)
+
+    # Restore brings them back (pairings stay ended; re-add if needed)
+    client.put(f"/api/agents/{agent['id']}", json={"active": True}, headers=LEAD)
+    rows = [s for s in client.get("/api/screenings", headers=LEAD).get_json()["screenings"]
+            if s["agent_name"] == "Levi Remove"]
+    assert all(r["agent_active"] is True for r in rows)
+    print("  [PASS] remove person: manager-only, ends pairings, keeps screenings, restorable")
+
+
 def test_date_filter():
     new_screening(agentName="Date Person", interactionDate="2026-01-15T23:30:00Z")
     rows = client.get("/api/screenings?from=2026-01-15&to=2026-01-15", headers=EVAL_A).get_json()
@@ -349,7 +376,7 @@ if __name__ == "__main__":
     tests = [
         test_health_reports_database, test_me, test_create_scores_on_server,
         test_edit_rules_and_history, test_teams, test_date_filter, test_assignments_flow,
-        test_pairs, test_attachments, test_import,
+        test_pairs, test_attachments, test_import, test_remove_person,
     ]
     failed = 0
     for t in tests:
