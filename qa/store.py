@@ -158,7 +158,7 @@ SCREENING_COLUMNS = (
     "s.score_earned, s.score_total, s.score_percent, s.pass_fail, s.suggestions, "
     "s.assignment_id, s.created_by, s.updated_at, s.updated_by, "
     "(s.sharepoint_id IS NOT NULL) AS imported, "
-    "COALESCE(a.team, 'customer_support') AS team"
+    "COALESCE(a.team, 'customer_support') AS team, COALESCE(a.active, TRUE) AS agent_active"
 )
 
 
@@ -254,6 +254,14 @@ def update_agent(agent_id):
             "RETURNING id, name, email, cxone_agent_id, team, active",
             (*params, agent_id),
         ).fetchone()
+        if row and data.get("active") is False:
+            # Removing a person ends their evaluator pairings, so no new
+            # assignments are generated for them. Their past screenings stay.
+            conn.execute(
+                "UPDATE evaluator_pairs SET active = FALSE WHERE agent_id = %s AND active",
+                (agent_id,),
+            )
+            log.info(f"[AGENTS] {current_user()['email']} removed agent {agent_id}")
     if not row:
         return jsonify({"error": "agent not found"}), 404
     return jsonify(_json(row))
@@ -271,7 +279,7 @@ def list_pairs():
             "a.id AS agent_id, a.name AS agent_name, a.email AS agent_email, "
             "a.cxone_agent_id, a.team "
             "FROM evaluator_pairs p JOIN agents a ON a.id = p.agent_id "
-            "WHERE p.active ORDER BY p.evaluator_name, a.name_key LIMIT %s",
+            "WHERE p.active AND a.active ORDER BY p.evaluator_name, a.name_key LIMIT %s",
             (MAX_LIST,),
         ).fetchall()
     return jsonify({"pairs": [_json(r) for r in rows]})
@@ -320,7 +328,7 @@ ASSIGNMENT_COLUMNS = (
     "x.id, x.week_of, x.evaluator_name, x.evaluator_email, x.agent_id, x.agent_name, "
     "x.contact_id, x.channel, x.interaction_date, x.duration_seconds, x.skill_name, "
     "x.status, x.screening_id, s.score_percent, s.pass_fail, "
-    "COALESCE(a.team, 'customer_support') AS team"
+    "COALESCE(a.team, 'customer_support') AS team, COALESCE(a.active, TRUE) AS agent_active"
 )
 
 
