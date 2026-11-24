@@ -31,6 +31,7 @@ def main():
     assert health["database"] == "error", health
     assert health["database_error"], health
     assert "127.0.0.1" not in str(health), "health must not leak the DB host"
+    assert health["database_check"] == "failed" and health["database_check_error"], health
 
     resp = client.get("/api/agents", headers={"X-API-Key": "test-qa-key"})
     body = resp.get_json()

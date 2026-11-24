@@ -95,6 +95,31 @@ def status() -> dict:
     return {"database": "error", "database_error": _schema_error or "not connected yet"}
 
 
+def probe() -> dict:
+    """Run a trivial query through the pool right now. For /health, so the
+    page shows whether requests can reach the database at this moment (not
+    just whether the tables were created at startup). Reports the error
+    type only, never the message, which can include the host."""
+    if not configured():
+        return {}
+    import time
+    started = time.monotonic()
+    try:
+        with connection() as conn:
+            conn.execute("SELECT 1")
+        out = {"database_check": "ok"}
+    except Exception as exc:
+        log.error(f"[DB] health probe failed: {type(exc).__name__}: {exc}")
+        out = {"database_check": "failed", "database_check_error": type(exc).__name__}
+    out["database_check_ms"] = round((time.monotonic() - started) * 1000)
+    try:
+        stats = _get_pool().get_stats()
+        out["pool"] = {k: stats.get(k) for k in ("pool_size", "pool_available", "requests_waiting")}
+    except Exception:
+        pass
+    return out
+
+
 def close() -> None:
     global _pool
     if _pool is not None:
