@@ -44,6 +44,18 @@ def _get_pool() -> ConnectionPool:
                 # (which releases the locks it held).
                 "options": "-c statement_timeout=20000 -c lock_timeout=10000 "
                            "-c idle_in_transaction_session_timeout=60000",
+                # Render's network can drop an idle connection without telling
+                # either side; the next query on it then waits forever (this
+                # froze every pooled connection in production). Have the OS
+                # give up on a connection whose sent data isn't acknowledged
+                # within 10s, and probe idle connections so dead ones are
+                # found before a request needs them.
+                "connect_timeout": 10,
+                "tcp_user_timeout": 10000,
+                "keepalives": 1,
+                "keepalives_idle": 30,
+                "keepalives_interval": 10,
+                "keepalives_count": 3,
             },
             open=True,
             # Fail a request after 10s instead of hanging when the DB is down
