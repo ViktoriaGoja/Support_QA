@@ -69,6 +69,7 @@ def health():
         "auth_configured": any(auth_methods_configured().values()),
         "auth": auth_methods_configured(),
         **db.status(),
+        **db.probe(),
         "attachments": bool(os.getenv("QA_ATTACHMENT_DIR")),
     })
 
